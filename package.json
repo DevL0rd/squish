@@ -1,0 +1,22 @@
+{
+  "name": "squish",
+  "version": "1.0.0",
+  "private": false,
+  "type": "module",
+  "description": "A living suspension of soft cells in dark water.",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DevL0rd/squish.git"
+  },
+  "keywords": [
+    "game",
+    "webgl",
+    "fluid",
+    "softbody",
+    "multiplayer"
+  ]
+}
