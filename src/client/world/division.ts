@@ -1,7 +1,7 @@
-import { at, clamp } from '../../shared/math.ts';
+import { clamp } from '../../shared/math.ts';
 import { type CellVisual, interiorScale, RING_POINTS } from '../cell/cell.ts';
 import { pairKey } from '../cell/contacts.ts';
-import { circleRing, ringCentroid, splitRing, type Point } from '../cell/geometry.ts';
+import { areaCut, circleRing, ringCentroid, splitRing, type Point } from '../cell/geometry.ts';
 import type { Cleave } from '../cell/membrane.ts';
 import { OrganelleKind, type Organelle } from '../cell/organelles.ts';
 
@@ -13,6 +13,7 @@ interface Division {
   readonly child: CellVisual;
   readonly dir: Point;
   readonly started: number;
+  readonly split: number;
 }
 
 const divisions: Division[] = [];
@@ -45,15 +46,20 @@ function splitNuclei(items: readonly Organelle[], dir: Point): Organelle[] {
 export function startDivision(parent: CellVisual, child: CellVisual): void {
   const length = Math.hypot(child.x - parent.center.x, child.y - parent.center.y) || 1;
   const dir = { x: (child.x - parent.center.x) / length, y: (child.y - parent.center.y) / length };
+  const share = child.targetRadius ** 2 / (parent.targetRadius ** 2 + child.targetRadius ** 2);
+  const cut = areaCut(parent.membrane, dir, share);
+  const along = (cut.x - parent.x) * dir.x + (cut.y - parent.y) * dir.y;
+  const span = (child.x - parent.x) * dir.x + (child.y - parent.y) * dir.y;
+  const split = span > 1e-3 ? clamp(along / span, 0.05, 0.95) : 0.5;
   parent.organelles.items = splitNuclei(parent.organelles.items, dir);
   parent.radius = Math.hypot(parent.targetRadius, child.targetRadius);
-  divisions.push({ parent, child, dir, started: performance.now() });
+  divisions.push({ parent, child, dir, started: performance.now(), split });
 }
 
 export function cleaveOf(cell: CellVisual): Cleave | null {
   const division = divisions.find((item) => item.parent === cell);
   if (!division) return null;
-  const { child, dir } = division;
+  const { child, dir, split } = division;
   const age = (performance.now() - division.started) / 1000;
   return {
     anchor: child,
@@ -62,6 +68,7 @@ export function cleaveOf(cell: CellVisual): Cleave | null {
     dirX: dir.x,
     dirY: dir.y,
     furrow: clamp(age * FURROW_RATE, 0, 1),
+    split,
   };
 }
 
@@ -80,23 +87,15 @@ function remapFrom(
   cell.interior.remap(field, offset, scale / originScale, false);
 }
 
-function neckPoint(parent: CellVisual, dir: Point): Point {
-  const { membrane } = parent;
-  let low = Infinity;
-  let high = -Infinity;
-  for (let i = 0; i < membrane.count; i += 1) {
-    const along = (at(membrane.x, i) - parent.x) * dir.x + (at(membrane.y, i) - parent.y) * dir.y;
-    low = Math.min(low, along);
-    high = Math.max(high, along);
-  }
-  const middle = (low + high) * 0.5;
-  return { x: parent.x + dir.x * middle, y: parent.y + dir.y * middle };
+function cutPoint(division: Division): Point {
+  const { parent, child, split } = division;
+  return { x: parent.x + (child.x - parent.x) * split, y: parent.y + (child.y - parent.y) * split };
 }
 
 function pinchOff(division: Division): void {
   const { parent, child, dir } = division;
   const origin = parent.center;
-  const cut = neckPoint(parent, dir);
+  const cut = cutPoint(division);
   const originScale = interiorScale(parent);
   const field = parent.interior.copyField();
   const [back, front] = splitRing(parent.membrane, cut, dir, RING_POINTS) ?? [

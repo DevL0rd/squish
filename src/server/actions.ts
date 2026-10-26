@@ -2,8 +2,7 @@ import { clamp, radiusFor } from '../shared/math.ts';
 import { EventKind, FoodVariety } from '../shared/protocol.ts';
 import { MERGE_DELAY } from './config.ts';
 import { addFood } from './food.ts';
-import { blockedAt } from './obstacles.ts';
-import { foodsNear } from './life/senses.ts';
+import { narrowContact } from './obstacles.ts';
 import { blendPigment } from './pigment.ts';
 import { direction } from './physics.ts';
 import { makeCell, playerColor } from './players.ts';
@@ -11,7 +10,7 @@ import type { Cell, Player, Point } from './types.ts';
 import { emit, world } from './world.ts';
 
 const SPLIT_COOLDOWN = 260;
-const SPLIT_MIN_MASS = 5;
+const SPLIT_MIN_MASS = 25;
 const LAUNCH_SPEED = 980;
 const EJECT_COOLDOWN = 240;
 const EJECT_MIN_MASS = 50;
@@ -33,6 +32,12 @@ interface Launch {
   readonly mass: number;
 }
 
+function adoptPiece(player: Player, cell: Cell, child: Cell): void {
+  player.cells.push(child);
+  const color = playerColor(player, 0.86, 0.62);
+  emit({ kind: EventKind.Split, cellId: cell.id, predatorId: child.id, x: child.x, y: child.y, color });
+}
+
 function launchPiece(player: Player, cell: Cell, launch: Launch): void {
   const { aim, speed } = launch;
   const child = makeCell({
@@ -47,9 +52,7 @@ function launchPiece(player: Player, cell: Cell, launch: Launch): void {
     digesting: cell.digesting,
     pigment: cell.pigment,
   });
-  player.cells.push(child);
-  const color = playerColor(player, 0.86, 0.62);
-  emit({ kind: EventKind.Split, cellId: cell.id, predatorId: child.id, x: child.x, y: child.y, color });
+  adoptPiece(player, cell, child);
 }
 
 export function launchCell(cell: Cell, aim: Point, speed: number): void {
@@ -167,33 +170,88 @@ export function rejoinCells(player: Player): void {
 const BURST_SPEED = 520;
 const BURST_PIECES = 7;
 
-const PINCH_SPEED = 260;
+const PINCH_SPEED = 70;
+const CUT_CLEAR = 0.5;
 const PINCH_COOLDOWN = 900;
 
+function segmentArea(offset: number): number {
+  const d = clamp(offset, -1, 1);
+  return Math.acos(d) - d * Math.sqrt(1 - d * d);
+}
+
+export function segmentShare(radius: number, offset: number): number {
+  return segmentArea(Math.abs(offset) / radius) / Math.PI;
+}
+
+function chordFor(share: number): number {
+  let low = -1;
+  let high = 1;
+  for (let i = 0; i < 24; i += 1) {
+    const middle = (low + high) / 2;
+    if (segmentArea(middle) / Math.PI > share) low = middle;
+    else high = middle;
+  }
+  return (low + high) / 2;
+}
+
+function segmentCentroid(offset: number): number {
+  const area = segmentArea(offset);
+  return area > 1e-6 ? (2 * Math.pow(1 - offset * offset, 1.5)) / (3 * area) : offset;
+}
+
 export function severCell(player: Player, cell: Cell, aim: Point, share: number, speed: number): void {
-  const mass = cell.mass * clamp(share, 0.05, 0.95);
+  const part = clamp(share, 0.05, 0.95);
+  const mass = cell.mass * part;
   if (mass < SPLIT_MIN_MASS || cell.mass - mass < SPLIT_MIN_MASS) return;
+  const line = chordFor(part) * cell.radius;
+  const front = Math.max(segmentCentroid(line / cell.radius) * cell.radius, line + radiusFor(mass) * CUT_CLEAR);
+  const back = Math.max(
+    segmentCentroid(-line / cell.radius) * cell.radius,
+    radiusFor(cell.mass - mass) * CUT_CLEAR - line,
+  );
+  const child = makeCell({
+    x: cell.x + aim.x * front,
+    y: cell.y + aim.y * front,
+    mass,
+    vx: cell.vx + aim.x * speed * (1 - part),
+    vy: cell.vy + aim.y * speed * (1 - part),
+    mergeAt: world.now + MERGE_DELAY,
+    digesting: cell.digesting * part,
+    pigment: cell.pigment,
+  });
+  cell.x -= aim.x * back;
+  cell.y -= aim.y * back;
+  cell.vx -= aim.x * speed * part;
+  cell.vy -= aim.y * speed * part;
   cell.mass -= mass;
   cell.radius = radiusFor(cell.mass);
+  cell.digesting *= 1 - part;
   cell.mergeAt = world.now + MERGE_DELAY;
-  launchPiece(player, cell, { aim, reach: 0.6, speed, mass });
+  adoptPiece(player, cell, child);
 }
 
-const PRESS_REACH = 1.1;
-const EDIBLE_RATIO = 1.35;
+const CUT_DEPTH = 0.78;
+const CUT_TIME = 0.4;
+const CUT_EASE = 2;
+const CUT_SPAN = 0.75;
+const CUT_MIN_RADIUS = radiusFor(SPLIT_MIN_MASS * 2);
 
-function pressed(cell: Cell): boolean {
-  if (blockedAt(cell, cell.radius * PRESS_REACH)) return true;
-  const big = (item: Point & { radius: number }): boolean =>
-    item.radius * EDIBLE_RATIO >= cell.radius &&
-    Math.hypot(item.x - cell.x, item.y - cell.y) < cell.radius * PRESS_REACH + item.radius;
-  return foodsNear(cell.x, cell.y, cell.radius * PRESS_REACH).some(big) || [...world.creatures.values()].some(big);
-}
-
-export function pinchCell(player: Player, cell: Cell, aim: Point, share: number): void {
-  if (world.now - player.lastSplit < PINCH_COOLDOWN || !pressed(cell)) return;
+export function cutAgainstObstacles(player: Player, cell: Cell, dt: number): void {
+  if (cell.radius < CUT_MIN_RADIUS) return;
+  const aim = aimFrom(player, cell);
+  const cut = narrowContact(cell, cell.radius, cell.radius * CUT_SPAN, aim);
+  if (!cut || cut.depth < cell.radius * CUT_DEPTH || aim.x * cut.nx + aim.y * cut.ny >= 0) {
+    cell.strain = Math.max(0, cell.strain - dt * CUT_EASE);
+    return;
+  }
+  cell.strain += dt;
+  if (cell.strain < CUT_TIME || world.now - player.lastSplit < PINCH_COOLDOWN) return;
+  cell.strain = 0;
   player.lastSplit = world.now;
-  severCell(player, cell, aim, clamp(share, 0.15, 0.85), PINCH_SPEED);
+  const across = { x: -aim.y, y: aim.x };
+  const offset = (cell.x - cut.x) * across.x + (cell.y - cut.y) * across.y;
+  const side = offset >= 0 ? -1 : 1;
+  severCell(player, cell, { x: across.x * side, y: across.y * side }, segmentShare(cell.radius, offset), PINCH_SPEED);
 }
 
 export function chipCell(player: Player, cell: Cell, aim: Point, fraction: number): void {

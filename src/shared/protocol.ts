@@ -120,7 +120,6 @@ export type ClientMessage =
   | { readonly t: 'eject' }
   | { readonly t: 'boost' }
   | { readonly t: 'probe'; readonly at: number }
-  | { readonly t: 'pinch'; readonly cell: number; readonly x: number; readonly y: number; readonly share: number }
   | { readonly t: 'admin'; readonly action: number; readonly arg: number };
 
 export type ServerMessage =

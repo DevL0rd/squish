@@ -22,6 +22,7 @@ export interface Cell extends Point {
   gut: number;
   wounds: number;
   heldUntil: number;
+  strain: number;
 }
 
 export interface Player {

@@ -25,6 +25,7 @@ export interface Cleave {
   readonly dirX: number;
   readonly dirY: number;
   readonly furrow: number;
+  readonly split: number;
 }
 
 export interface Drive {
@@ -120,6 +121,12 @@ export class Membrane implements Ring {
       if (!drive.cleave) this.untangle();
     }
     if (!drive.cleave) containRing(this, drive.anchor);
+    this.shut(drive.walls, drive.rounds);
+  }
+
+  private shut(walls: readonly Wall[], rounds: readonly Round[]): void {
+    for (const wall of walls) shutWall(this, wall);
+    for (const round of rounds) shutRound(this, round);
   }
 
   private integrate(): void {
@@ -228,8 +235,8 @@ export class Membrane implements Ring {
   }
 
   private side(anchor: Point, cleave: Cleave, i: number): number {
-    const midX = (anchor.x + cleave.anchor.x) * 0.5;
-    const midY = (anchor.y + cleave.anchor.y) * 0.5;
+    const midX = anchor.x + (cleave.anchor.x - anchor.x) * cleave.split;
+    const midY = anchor.y + (cleave.anchor.y - anchor.y) * cleave.split;
     return (at(this.x, i) - midX) * cleave.dirX + (at(this.y, i) - midY) * cleave.dirY;
   }
 
@@ -293,8 +300,7 @@ export class Membrane implements Ring {
     this.pressure();
     this.wrapCups();
     for (const plane of planes) this.clamp(plane);
-    for (const wall of walls) shutWall(this, wall);
-    for (const round of rounds) shutRound(this, round);
+    this.shut(walls, rounds);
     this.tension();
     this.repel();
   }

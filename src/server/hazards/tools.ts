@@ -1,6 +1,6 @@
 import { hslToRgb, radiusFor } from '../../shared/math.ts';
 import { EventKind, SkyTool } from '../../shared/protocol.ts';
-import { severCell } from '../actions.ts';
+import { segmentShare, severCell } from '../actions.ts';
 import type { Cell } from '../types.ts';
 import { emit, ownerOf, toBytes, world } from '../world.ts';
 
@@ -39,12 +39,6 @@ function drain(cell: Cell, x: number, y: number): void {
 
 function hold(cell: Cell): void {
   cell.heldUntil = world.now + HOLD_TIME;
-}
-
-function segmentShare(radius: number, offset: number): number {
-  const d = Math.min(radius, Math.abs(offset));
-  const segment = radius * radius * Math.acos(d / radius) - d * Math.sqrt(radius * radius - d * d);
-  return segment / (Math.PI * radius * radius);
 }
 
 function slice(target: Cell, angle: number): void {

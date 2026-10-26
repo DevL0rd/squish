@@ -107,8 +107,7 @@ export function unionRing(a: Ring, b: Ring, count: number): Ring {
   return resample(points, count);
 }
 
-export function splitRing(ring: Ring, origin: Point, dir: Point, count: number): [Ring, Ring] | null {
-  const points = ringPoints(ring);
+function halves(points: readonly Point[], origin: Point, dir: Point): [Point[], Point[]] {
   const side = (point: Point): number => (point.x - origin.x) * dir.x + (point.y - origin.y) * dir.y;
   const back: Point[] = [];
   const front: Point[] = [];
@@ -123,6 +122,41 @@ export function splitRing(ring: Ring, origin: Point, dir: Point, count: number):
     back.push(cut);
     front.push(cut);
   });
+  return [back, front];
+}
+
+function pointsArea(points: readonly Point[]): number {
+  let area = 0;
+  points.forEach((point, i) => {
+    const next = points[(i + 1) % points.length] ?? point;
+    area += point.x * next.y - next.x * point.y;
+  });
+  return Math.abs(area) * 0.5;
+}
+
+export function splitRing(ring: Ring, origin: Point, dir: Point, count: number): [Ring, Ring] | null {
+  const [back, front] = halves(ringPoints(ring), origin, dir);
   if (back.length < 3 || front.length < 3) return null;
   return [resample(back, count), resample(front, count)];
+}
+
+export function areaCut(ring: Ring, dir: Point, share: number): Point {
+  const points = ringPoints(ring);
+  const center = ringCentroid(ring);
+  const total = Math.max(pointsArea(points), 1e-6);
+  let low = Infinity;
+  let high = -Infinity;
+  for (const point of points) {
+    const along = (point.x - center.x) * dir.x + (point.y - center.y) * dir.y;
+    low = Math.min(low, along);
+    high = Math.max(high, along);
+  }
+  for (let i = 0; i < 20; i += 1) {
+    const middle = (low + high) / 2;
+    const origin = { x: center.x + dir.x * middle, y: center.y + dir.y * middle };
+    if (pointsArea(halves(points, origin, dir)[1]) / total > share) low = middle;
+    else high = middle;
+  }
+  const middle = (low + high) / 2;
+  return { x: center.x + dir.x * middle, y: center.y + dir.y * middle };
 }

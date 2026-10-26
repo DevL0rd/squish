@@ -41,6 +41,7 @@ export function makeCell(options: CellOptions): Cell {
     gut: -1,
     wounds: 0,
     heldUntil: 0,
+    strain: 0,
   };
 }
 

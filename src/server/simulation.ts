@@ -1,5 +1,5 @@
-import { clamp, digestionRate, radiusFor, WORLD, digestSpeed } from '../shared/math.ts';
-import { rejoinCells } from './actions.ts';
+import { clamp, digestionRate, radiusFor, WORLD } from '../shared/math.ts';
+import { cutAgainstObstacles, rejoinCells } from './actions.ts';
 import { updateBot } from './bots/brain.ts';
 import { resolveCells } from './collisions.ts';
 import { THING_TARGET } from './config.ts';
@@ -20,7 +20,8 @@ const BOT_MASS_CAP = 250;
 const LAUNCH_DRAG = 2.4;
 const BASE_SPEED = 540;
 const DIGEST_TIME = 10;
-const SOFT_CORE = 0.3;
+const SOFT_CORE = 0.15;
+const DIGEST_DRAG = 0.035;
 const MASS_SLOWDOWN = 0.3;
 const MASS_SLOWDOWN_AT = 10000;
 
@@ -36,7 +37,7 @@ function steerCell(player: Player, cell: Cell, dt: number): void {
   const distance = Math.hypot(dx, dy);
   cell.digesting *= Math.exp((-dt * digestionRate(cell.radius)) / DIGEST_TIME);
   const heft = 1 - MASS_SLOWDOWN * Math.min(1, cell.mass / MASS_SLOWDOWN_AT);
-  const speed = BASE_SPEED * digestSpeed(cell.digesting, cell.mass) * heft * speedFactor(player) * hazardSlowdown(cell);
+  const speed = (BASE_SPEED / (1 + cell.digesting * DIGEST_DRAG)) * heft * speedFactor(player) * hazardSlowdown(cell);
   let desiredX = 0;
   let desiredY = 0;
   if (distance > cell.radius * 0.18) {
@@ -118,8 +119,11 @@ function* allCells(): Generator<Cell> {
   for (const player of world.players.values()) yield* player.cells;
 }
 
-function collideAll(): void {
-  for (const member of allMembers()) collideBody(member.cell, member.cell.radius * SOFT_CORE);
+function collideAll(dt: number): void {
+  for (const { player, cell } of allMembers()) {
+    collideBody(cell, cell.radius * SOFT_CORE);
+    cutAgainstObstacles(player, cell, dt);
+  }
   for (const food of world.foods.values()) if ((food.id + world.tick) % 2 === 0) collideBody(food);
   for (const creature of world.creatures.values()) collideBody(creature);
 }
@@ -136,7 +140,7 @@ export function update(dt: number): void {
   updateObstacles(dt);
   updateHazards(dt);
   updateCombat(dt);
-  collideAll();
+  collideAll(dt);
   if (thingCount() > THING_TARGET + 140) trimEjecta(THING_TARGET, thingCount);
   feedPlayers(world.players.values());
   for (const player of world.players.values()) respawnBotIfDue(player);

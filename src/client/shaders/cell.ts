@@ -120,7 +120,7 @@ void main() {
     texture(uBackground, clamp(screenUv - bend * 0.92, vec2(0.0), vec2(1.0))).b
   );
 
-  vec2 grainUv = vWorld * 0.42 + drift * 6.0 + vec2(uTime * 0.6, -uTime * 0.4);
+  vec2 grainUv = (vWorld - uCenter) * 0.42 + drift * 6.0 + vec2(uTime * 0.6, -uTime * 0.4);
   float grain = fbm(grainUv * 0.5);
   float speckle = smoothstep(0.7, 0.92, vnoise(grainUv * 1.7)) * hyaline;
 

@@ -17,7 +17,7 @@ import {
 } from './dom.ts';
 import { resize } from './gl/screen.ts';
 import { drawLabels, updateOccupancy, updateUI } from './hud.ts';
-import { bindInput, steerWithJoystick, stopJoystick } from './input.ts';
+import { bindInput, steerWithJoystick, steerWithMouse, stopJoystick } from './input.ts';
 import { Net } from './net.ts';
 import { enableAdmin } from './ui/admin.ts';
 import { receiveEcho, receiveStats, updatePerfHud } from './ui/perf-hud.ts';
@@ -33,7 +33,7 @@ import { playerCenter, state } from './state.ts';
 import { resetDecor } from './world/decor.ts';
 import { receiveHazards } from './world/hazards.ts';
 import { receiveDrift, receiveShapes } from './world/obstacles.ts';
-import { takePinches, updateSimulation } from './world/simulation.ts';
+import { updateSimulation } from './world/simulation.ts';
 import { bindInterfaceSettings } from './ui/apply.ts';
 import { clearEffects, updateEffects } from './ui/effects.ts';
 import { resetMeals, updateMeals } from './ui/meals.ts';
@@ -183,8 +183,8 @@ function loop(): void {
     updateSimulation(dt);
   });
   steerWithJoystick();
+  steerWithMouse();
   sendControls(performance.now());
-  for (const pinch of takePinches()) net.pinch(pinch.cell, pinch.x, pinch.y, pinch.share);
   stage('render', () => {
     gpuStage(() => {
       renderFrame(dt);

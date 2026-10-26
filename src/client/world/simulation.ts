@@ -7,7 +7,7 @@ import { updateCamera } from './camera.ts';
 import { maintainDecor } from './decor.ts';
 import { updateParallax } from './parallax.ts';
 import { cleaveOf, divisionPairs, holdsRadius, isHidden, updateDivisions } from './division.ts';
-import { pinchOf, type Round } from '../cell/membrane-limits.ts';
+import type { Round } from '../cell/membrane-limits.ts';
 import { driftObstacles, obstacleWalls } from './obstacles.ts';
 import { uploadInterior } from './textures.ts';
 
@@ -48,23 +48,6 @@ function pixels(cell: CellVisual): number {
   return (cell.radius * canvas.clientWidth) / Math.max(state.camera.width, 1);
 }
 
-const PINCH_COOLDOWN = 1000;
-const pinches: { cell: number; x: number; y: number; share: number }[] = [];
-let lastPinch = 0;
-
-function notePinch(cell: CellVisual): void {
-  const now = performance.now();
-  if (now - lastPinch < PINCH_COOLDOWN || cleaveOf(cell)) return;
-  const pinch = pinchOf(cell.membrane);
-  if (!pinch) return;
-  lastPinch = now;
-  pinches.push({ cell: cell.id, ...pinch });
-}
-
-export function takePinches(): { cell: number; x: number; y: number; share: number }[] {
-  return pinches.splice(0, pinches.length);
-}
-
 function stepMembranes(dt: number): void {
   const cells: CellVisual[] = [];
   for (const cell of state.cells.values()) {
@@ -96,7 +79,6 @@ function stepActive(cells: readonly CellVisual[], dt: number): void {
     const substeps = pixels(cell) < COARSE_PIXELS ? 1 : 3;
     const rounds = roundsNear(cell);
     stepMembrane(cell, dt, { planes: planes.get(cell) ?? [], walls, rounds, cleave: cleaveOf(cell), substeps });
-    if ((walls.length || rounds.length) && cell.pid === state.me) notePinch(cell);
   }
 }
 

@@ -215,10 +215,6 @@ export class Net {
     this.send({ t: 'view', x: Math.round(x), y: Math.round(y) });
   }
 
-  pinch(cell: number, x: number, y: number, share: number): void {
-    this.send({ t: 'pinch', cell, x, y, share });
-  }
-
   split(): void {
     this.send({ t: 'split' });
   }

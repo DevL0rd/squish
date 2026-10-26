@@ -14,6 +14,7 @@ const WAKE_SCALE = 2.4;
 const CELL_SOFTNESS = 0.35;
 const FLOW_STRIDE = 3;
 const COHESION_STRIDE = 3;
+const REFILL_PER_TICK = 12;
 const EJECTA_LIFETIME = 12000;
 const OWNER_IMMUNITY = 2000;
 const EDIBLE_RATIO = 1.35;
@@ -124,7 +125,10 @@ function eatFood(cell: Cell, food: Food): void {
     amount: gained,
     bonus: gained / food.mass,
   });
-  addFood();
+}
+
+function replenish(): void {
+  for (let i = 0; i < REFILL_PER_TICK && world.foods.size < FOOD_TARGET; i += 1) addFood();
 }
 
 const COHESION_SIDE = Math.ceil(WORLD / COHESION_BUCKET) + 1;
@@ -205,6 +209,7 @@ function touches(cell: Cell, food: Food, reachScale: number): boolean {
 }
 
 export function updateFoods(dt: number): void {
+  replenish();
   if (world.tick % COHESION_STRIDE === 0) applyFoodCohesion();
   for (const food of world.foods.values()) {
     driftFood(food, dt);

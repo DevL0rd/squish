@@ -171,6 +171,38 @@ function contactWith(obstacle: Obstacle, body: Point, radius: number): Contact |
   return { normal: toWorldVector(obstacle, outward), depth };
 }
 
+export interface Cut {
+  readonly x: number;
+  readonly y: number;
+  readonly nx: number;
+  readonly ny: number;
+  readonly depth: number;
+}
+
+const CUT_INSET = 0.66;
+
+function solidAt(obstacle: Obstacle, point: Point): boolean {
+  return nearestEdge(obstacle.points, toLocal(obstacle, point)).inside;
+}
+
+export function narrowContact(body: Point, radius: number, width: number, along: Point): Cut | null {
+  let deepest: Cut | null = null;
+  for (const obstacle of nearby(body, radius)) {
+    const contact = contactWith(obstacle, body, radius);
+    if (!contact || (deepest && deepest.depth >= contact.depth)) continue;
+    const { normal, depth } = contact;
+    const x = body.x - normal.x * (radius - depth);
+    const y = body.y - normal.y * (radius - depth);
+    const probe = (side: number): Point => ({
+      x: x + along.x * width * CUT_INSET - along.y * width * side,
+      y: y + along.y * width * CUT_INSET + along.x * width * side,
+    });
+    if (solidAt(obstacle, probe(1)) || solidAt(obstacle, probe(-1))) continue;
+    deepest = { x, y, nx: normal.x, ny: normal.y, depth };
+  }
+  return deepest;
+}
+
 export function collideBody(body: Body, radius = body.radius): void {
   for (const obstacle of nearby(body, radius)) {
     const contact = contactWith(obstacle, body, radius);

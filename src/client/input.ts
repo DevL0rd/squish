@@ -21,13 +21,26 @@ function pointerWorld(clientX: number, clientY: number): { x: number; y: number 
   return { x: state.camera.x + nx * state.camera.width, y: state.camera.y - ny * state.camera.height };
 }
 
+const mouse = { x: 0, y: 0, active: false };
+
 function aimAt(clientX: number, clientY: number): void {
+  mouse.x = clientX;
+  mouse.y = clientY;
+  mouse.active = true;
   const world = pointerWorld(clientX, clientY);
   state.target.x = world.x;
   state.target.y = world.y;
 }
 
+export function steerWithMouse(): void {
+  if (!mouse.active || stick.active) return;
+  const world = pointerWorld(mouse.x, mouse.y);
+  state.target.x = world.x;
+  state.target.y = world.y;
+}
+
 export function stopJoystick(): void {
+  mouse.active = false;
   stick.active = false;
   stick.id = -1;
   joystick.hidden = true;
