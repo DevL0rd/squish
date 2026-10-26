@@ -1,9 +1,4 @@
 export const bossOptics = `
-float relief(Sample s) {
-  vec2 gradient = vec2(dFdx(s.d), dFdy(s.d));
-  return dot(normalize(gradient + 1e-6), SHEAR);
-}
-
 float body(Sample s) {
   return smoothstep(s.pixel * 1.2, -s.pixel * 1.2, s.d);
 }
@@ -41,8 +36,9 @@ float ring(float d, float radius, float width) {
 vec3 compose(Sample s, vec3 tissue, float density) {
   float t = thickness(s);
   vec3 back = behind(s, 0.4) * vec3(0.92, 1.0, 0.96);
-  vec3 col = mix(back, tissue, clamp(density * (0.22 + 0.5 * t), 0.0, 0.9));
-  col += vec3(0.9, 0.97, 1.0) * max(relief(s), 0.0) * 0.16 * (1.0 - t);
-  return col;
+  vec2 bump = (vec2(vnoise(vec2(s.along * 0.08, s.v * 4.0)), vnoise(vec2(s.along * 0.08 + 9.0, s.v * 4.0))) - 0.5) * 0.25;
+  vec3 surface = domeNormal(s.side * s.v, t, bump * t);
+  vec3 lit = shade(tissue * 1.2, surface, t, vWorld, 0.95);
+  return mix(back, lit, clamp(density * (0.22 + 0.5 * t), 0.0, 0.9));
 }
 `;

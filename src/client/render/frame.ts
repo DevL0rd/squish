@@ -9,6 +9,7 @@ import { drawObstacles } from './obstacles.ts';
 import { drawBoss } from './boss.ts';
 import { drawNeedle, drawSpotlight } from './spotlight.ts';
 import { drawLights } from './lights.ts';
+import { updateLighting } from './lighting.ts';
 import { drawStreaks } from './streaks.ts';
 import { stepFluid } from './fluid.ts';
 import { followCamera } from './fluid-window.ts';
@@ -108,6 +109,7 @@ export function renderFrame(dt: number): void {
     stepFluid(SIM_STEP);
     simAccumulator = 0;
   }
+  updateLighting();
   drawBase(state.time);
   drawCellLayer(state.time);
   compositeCells();

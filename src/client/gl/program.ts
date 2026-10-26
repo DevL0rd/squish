@@ -29,12 +29,16 @@ function linkProgram(vertexSource: string, fragmentSource: string): WebGLProgram
   return program;
 }
 
+export const LIGHTS_BINDING = 0;
+
 export class ShaderProgram {
   private readonly program: WebGLProgram;
   private readonly uniforms = new Map<string, WebGLUniformLocation | null>();
 
   constructor(vertexSource: string, fragmentSource: string) {
     this.program = linkProgram(vertexSource, fragmentSource);
+    const block = gl.getUniformBlockIndex(this.program, 'Lights');
+    if (block !== gl.INVALID_INDEX) gl.uniformBlockBinding(this.program, block, LIGHTS_BINDING);
     const count = gl.getProgramParameter(this.program, gl.ACTIVE_UNIFORMS) as number;
     for (let i = 0; i < count; i += 1) {
       const info = gl.getActiveUniform(this.program, i);

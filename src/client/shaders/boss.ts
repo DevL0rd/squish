@@ -1,3 +1,4 @@
+import { lighting } from './lighting.ts';
 import { bossAnnelid } from './boss-annelid.ts';
 import { bossCiliate } from './boss-ciliate.ts';
 import { bossMold } from './boss-mold.ts';
@@ -24,6 +25,7 @@ uniform float uKind;
 uniform sampler2D uBackground;
 uniform float uScale;
 ${noise}
+${lighting}
 
 const vec2 SHEAR = vec2(-0.6, 0.8);
 

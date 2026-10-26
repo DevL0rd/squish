@@ -1,3 +1,4 @@
+import { lighting } from './lighting.ts';
 import { noise } from './noise.ts';
 
 export const foodVertex = `#version 300 es
@@ -9,6 +10,7 @@ layout(location = 3) in vec4 aExtra;
 uniform vec2 uCamera;
 uniform vec2 uView;
 out vec2 vLocal;
+out vec2 vWorld;
 out vec4 vTint;
 out float vPhase;
 out float vVariety;
@@ -18,6 +20,7 @@ void main() {
   vPhase = aBody.w;
   vVariety = aExtra.x;
   vec2 world = aBody.xy + aCorner * aBody.z;
+  vWorld = world;
   vec2 clip = (world - uCamera) / (uView * 0.5);
   gl_Position = vec4(clip, 0.0, 1.0);
 }`;
@@ -25,14 +28,14 @@ void main() {
 export const foodFragment = `#version 300 es
 precision highp float;
 in vec2 vLocal;
+in vec2 vWorld;
 in vec4 vTint;
 in float vPhase;
 in float vVariety;
 out vec4 outColor;
 uniform float uTime;
 ${noise}
-
-const vec2 SHEAR = vec2(-0.6, 0.8);
+${lighting}
 
 struct Shape {
   float d;
@@ -45,10 +48,6 @@ vec2 orient(vec2 p, float seed) {
   return mat2(cos(turn), -sin(turn), sin(turn), cos(turn)) * p;
 }
 
-float reliefOf(float d) {
-  vec2 gradient = vec2(dFdx(d), dFdy(d));
-  return dot(normalize(gradient + 1e-6), SHEAR);
-}
 
 Shape algae(vec2 p, float seed, vec3 tint) {
   vec2 q = p;
@@ -130,7 +129,9 @@ void main() {
   float body = smoothstep(aa, -aa, shape.d);
   if (body < 0.003) discard;
   float depth = clamp(-shape.d * 6.0, 0.0, 1.0);
-  vec3 col = shape.color * (0.7 + 0.3 * depth);
-  col += vec3(0.85, 0.97, 0.93) * reliefOf(shape.d) * (1.0 - depth) * 0.3;
+  float thick = sqrt(depth * (2.0 - depth));
+  vec2 outward = normalize(vec2(dFdx(shape.d), dFdy(shape.d)) + 1e-6);
+  vec2 bump = (vec2(vnoise(q * 14.0 + seed), vnoise(q * 14.0 + seed + 4.7)) - 0.5) * 0.35 * depth;
+  vec3 col = shade(shape.color * 1.25, domeNormal(outward, thick, bump), thick, vWorld, 0.7);
   outColor = vec4(col, body * shape.opacity * (0.6 + 0.4 * depth) * vTint.a);
 }`;

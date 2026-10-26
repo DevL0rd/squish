@@ -47,6 +47,8 @@ const CONTACT_SOFTNESS = 0.3;
 const CUP_RATE = 0.2;
 const SELF_GAP = 0.9;
 const PRESSURE_STEP = 0.04;
+const CUP_SPAN = 0.5;
+const CUP_REACH = 1.45;
 const SHAPE_RATE = 5;
 
 export class Membrane implements Ring {
@@ -366,7 +368,7 @@ export class Membrane implements Ring {
     const toCup = Math.atan2(cup.y - center.y, cup.x - center.x);
     const distance = Math.hypot(cup.x - center.x, cup.y - center.y);
     if (distance > this.radius * 1.6 + cup.radius) return;
-    const span = Math.asin(clamp((cup.radius * 1.5) / Math.max(distance, 1e-3), 0, 1)) + 0.12;
+    const span = Math.max(CUP_SPAN, Math.asin(clamp((cup.radius * 1.5) / Math.max(distance, 1e-3), 0, 1)) + 0.12);
     const progress = 1 - cup.life / cup.duration;
     const envelope = clamp(progress / 0.35, 0, 1) * clamp(cup.life / 0.25, 0, 1) * CUP_RATE;
     for (let i = 0; i < this.count; i += 1) {
@@ -374,10 +376,10 @@ export class Membrane implements Ring {
       const dy = at(this.y, i) - center.y;
       const offAxis = Math.abs(Math.atan2(Math.sin(Math.atan2(dy, dx) - toCup), Math.cos(Math.atan2(dy, dx) - toCup)));
       if (offAxis > span) continue;
-      const reach = (distance + cup.radius * 1.15) * Math.cos(offAxis * 0.5);
+      const reach = Math.min(distance + cup.radius * 1.15, this.radius * CUP_REACH) * Math.cos(offAxis * 0.5);
       const radial = Math.hypot(dx, dy) || 1;
       if (radial >= reach) continue;
-      const pull = (reach - radial) * envelope * (1 - offAxis / span);
+      const pull = (reach - radial) * envelope * (0.5 + 0.5 * Math.cos((Math.PI * offAxis) / span));
       this.x[i] = at(this.x, i) + (dx / radial) * pull;
       this.y[i] = at(this.y, i) + (dy / radial) * pull;
     }

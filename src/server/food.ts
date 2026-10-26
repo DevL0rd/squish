@@ -45,10 +45,10 @@ interface Grade {
 }
 
 const GRADES: Readonly<Record<number, Grade>> = {
-  [FoodVariety.Algae]: { least: 1, tail: 1.6, density: 0.35 },
-  [FoodVariety.Plant]: { least: 4, tail: 1, density: 0.5 },
-  [FoodVariety.Detritus]: { least: 3, tail: 1, density: 0.4 },
-  [FoodVariety.Pollen]: { least: 8, tail: 1.2, density: 0.8 },
+  [FoodVariety.Algae]: { least: 1, tail: 2.4, density: 0.35 },
+  [FoodVariety.Plant]: { least: 4, tail: 1.9, density: 0.5 },
+  [FoodVariety.Detritus]: { least: 3, tail: 1.9, density: 0.4 },
+  [FoodVariety.Pollen]: { least: 8, tail: 2.1, density: 0.8 },
 };
 
 function sized(variety: number): { radius: number; mass: number } {

@@ -1,3 +1,4 @@
+import { lighting } from './lighting.ts';
 import { noise } from './noise.ts';
 
 export const MAX_RENDER_POINTS = 128;
@@ -34,6 +35,7 @@ uniform float uTime;
 uniform float uSeed;
 uniform float uOpacity;
 ${noise}
+${lighting}
 
 const vec2 SHEAR = vec2(-0.6, 0.8);
 const int COARSE = 8;
@@ -124,11 +126,11 @@ void main() {
 
   vec3 col = back * exp(-dye * (0.6 + 0.8 * height)) * (0.8 + 0.2 * height);
   vec3 scatter = 1.0 - exp(-dye * 2.6);
-  col += scatter * (0.22 + 0.7 * height) * mix(0.5, 1.0, hyaline);
+  vec3 lightNormal = normalize(vec3(-normal * slope * 0.45, 1.0));
+  col += shade(scatter * mix(0.45, 0.8, hyaline), lightNormal, height, vWorld, 1.0) * (0.22 + 0.5 * height);
   col += uColor * 0.018 * height;
   col += (grain - 0.5) * 0.06 * hyaline * (0.4 + scatter);
   col += vec3(0.85, 0.95, 0.9) * speckle * 0.05;
-  col += vec3(0.9, 1.0, 0.96) * relief * (0.05 + 0.2 * (1.0 - height));
 
   float inner = depth / pixel;
   float line = exp(-pow((inner - 0.9) / 0.85, 2.0));

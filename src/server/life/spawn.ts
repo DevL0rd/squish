@@ -5,7 +5,7 @@ import { nextId, toBytes, world } from '../world.ts';
 import { Behavior, speciesOf } from './species.ts';
 
 const REGION_BLEND = 0.65;
-const SIZE_TAIL = 2.4;
+const SIZE_TAIL = 3.4;
 const SIZE_LIMIT = 9;
 
 export function doublingTime(): number {

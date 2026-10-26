@@ -3,7 +3,7 @@ import type { Rgb } from '../../shared/math.ts';
 import { addSplat } from '../state.ts';
 import { spawnBurst } from './decor.ts';
 
-export const Weapon = { Volley: 2, Dart: 3, Pulse: 4, Bomb: 5, Toxin: 6 } as const;
+export const Weapon = { Volley: 2, Dart: 3, Pulse: 4, Bomb: 5, Toxin: 6, Spine: 7 } as const;
 
 interface Shot {
   readonly kind: number;
@@ -36,6 +36,7 @@ const LIFETIME: Readonly<Record<number, number>> = {
   [Weapon.Pulse]: 0.7,
   [Weapon.Bomb]: (CLOUD_DELAY + CLOUD_LIFE) / 1000,
   [Weapon.Toxin]: TOXIN_LIFE,
+  [Weapon.Spine]: 0.9,
 };
 const PUFF_INTERVAL = 0.22;
 const ACID: Rgb = [0.75, 0.95, 0.35];
@@ -146,6 +147,15 @@ function acid(color: Rgb): Rgb {
   return [ACID[0] * 0.8 + color[0] * 0.2, ACID[1] * 0.8 + color[1] * 0.2, ACID[2] * 0.8 + color[2] * 0.2];
 }
 
+function spine(shot: Shot, age: number): Streak[] {
+  const { aim, range } = geometry(shot);
+  const head = Math.min(range, shot.radius + (age / 0.12) * range);
+  const alpha = 1 - Math.max(0, (age - 0.4) / 0.5);
+  const a = point(shot.from, aim, shot.radius * 0.8);
+  const b = point(shot.from, aim, head);
+  return [{ a, b, width: 1.1, glow: 0.35, pointed: true, seed: shot.seed, color: [0.92, 0.9, 0.85], alpha }];
+}
+
 function toxin(shot: Shot, age: number): Streak[] {
   puff(shot, age, { radius: shot.radius, life: TOXIN_LIFE, tint: shot.color });
   return [];
@@ -157,6 +167,7 @@ const DRAW: Readonly<Record<number, (shot: Shot, age: number) => Streak[]>> = {
   [Weapon.Pulse]: pulse,
   [Weapon.Bomb]: bomb,
   [Weapon.Toxin]: toxin,
+  [Weapon.Spine]: spine,
 };
 
 export function activeStreaks(): Streak[] {

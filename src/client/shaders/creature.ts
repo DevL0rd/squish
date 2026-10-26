@@ -1,5 +1,6 @@
 import { creatureKinds } from './creature-kinds.ts';
 import { creatureSpecies } from './creature-species.ts';
+import { lighting } from './lighting.ts';
 import { noise } from './noise.ts';
 
 export const creatureVertex = `#version 300 es
@@ -11,6 +12,7 @@ layout(location = 3) in vec4 aMotion;
 uniform vec2 uCamera;
 uniform vec2 uView;
 out vec2 vLocal;
+out vec2 vWorld;
 out vec4 vTint;
 out float vKind;
 out float vPhase;
@@ -23,6 +25,7 @@ void main() {
   vec2 corner = vec2(aCorner.x * c - aCorner.y * s, aCorner.x * s + aCorner.y * c);
   vec2 world = aBody.xy + corner * aBody.z;
   gl_Position = vec4((world - uCamera) / (uView * 0.5), 0.0, 1.0);
+  vWorld = world;
   vLocal = aCorner;
   vTint = aTint;
   vKind = aBody.w;
@@ -35,6 +38,7 @@ void main() {
 export const creatureFragment = `#version 300 es
 precision highp float;
 in vec2 vLocal;
+in vec2 vWorld;
 in vec4 vTint;
 in float vKind;
 in float vPhase;
@@ -45,6 +49,7 @@ out vec4 outColor;
 uniform sampler2D uBackground;
 uniform vec2 uResolution;
 ${noise}
+${lighting}
 
 bool inState(float code) {
   return abs(vState - code) < 0.5;
@@ -121,11 +126,10 @@ void main() {
   float vacuole = smoothstep(0.5, 0.4, cellular(vLocal * 5.4 + 3.1 + sin(vPhase * 0.4) * 0.3)) * depth;
   vec3 tissue = mix(cytoplasm(tint, o, depth), behind * 1.08, max(vacuole * 0.45, o.clear * 0.5));
   float density = clamp(0.26 + 0.46 * o.dense + 0.14 * o.pigment - 0.3 * o.clear, 0.05, 0.92);
-  vec3 col = mix(behind, tissue, density * (0.4 + 0.6 * thick));
-  float light = dot(normal, normalize(vec2(0.6, -0.8)));
-  col *= 0.86 + 0.14 * thick;
-  col += vec3(0.85, 0.95, 0.9) * max(light, 0.0) * (1.0 - thick) * 0.16;
-  col += vec3(1.0) * smoothstep(0.3, 0.0, length(vLocal - vec2(-0.16, 0.2))) * thick * 0.06;
+  vec2 bump = (vec2(vnoise(vLocal * 16.0 + vPhase * 0.2), vnoise(vLocal * 16.0 + 5.3)) - 0.5) * 0.3 * depth;
+  vec3 surface = domeNormal(normal, thick, bump);
+  vec3 lit = shade(tissue, surface, thick, vWorld, 0.9);
+  vec3 col = mix(behind, lit, density * (0.4 + 0.6 * thick));
   col = mix(col, mix(vec3(0.8, 0.95, 0.9), tint, 0.3) * 0.75, o.fringe * (1.0 - body));
   float alpha = max(body * 0.94, o.fringe * 0.55);
   col = mix(col, vec3(1.0, 0.16, 0.1), warning * (1.0 - body) * 0.9);
