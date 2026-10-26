@@ -32,12 +32,12 @@ uniform sampler2D uSource;
 uniform vec2 uDirection;
 
 void main() {
-  vec3 sum = texture(uSource, vUv).rgb * 0.227027;
-  sum += texture(uSource, vUv + uDirection * 1.384615).rgb * 0.316216;
-  sum += texture(uSource, vUv - uDirection * 1.384615).rgb * 0.316216;
-  sum += texture(uSource, vUv + uDirection * 3.230769).rgb * 0.070270;
-  sum += texture(uSource, vUv - uDirection * 3.230769).rgb * 0.070270;
-  outColor = vec4(sum, 1.0);
+  vec4 sum = texture(uSource, vUv) * 0.227027;
+  sum += texture(uSource, vUv + uDirection * 1.384615) * 0.316216;
+  sum += texture(uSource, vUv - uDirection * 1.384615) * 0.316216;
+  sum += texture(uSource, vUv + uDirection * 3.230769) * 0.070270;
+  sum += texture(uSource, vUv - uDirection * 3.230769) * 0.070270;
+  outColor = sum;
 }`;
 
 export const blitFragment = `#version 300 es

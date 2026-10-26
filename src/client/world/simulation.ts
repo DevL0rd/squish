@@ -5,6 +5,7 @@ import { canvas } from '../dom.ts';
 import { growStep, inView, state } from '../state.ts';
 import { updateCamera } from './camera.ts';
 import { maintainDecor } from './decor.ts';
+import { updateParallax } from './parallax.ts';
 import { cleaveOf, divisionPairs, holdsRadius, isHidden, updateDivisions } from './division.ts';
 import { pinchOf } from '../cell/membrane-limits.ts';
 import { driftObstacles, obstacleWalls } from './obstacles.ts';
@@ -123,5 +124,6 @@ export function updateSimulation(dt: number): void {
   fadeSpitTints(dt);
   moveFood(dt);
   maintainDecor(dt);
+  updateParallax(dt);
   updateCamera(dt);
 }

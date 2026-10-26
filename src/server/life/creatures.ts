@@ -10,7 +10,7 @@ import { holdLatch, resolveContact } from './contacts.ts';
 import { buildCellGrid, buildFoodGrid, foodsNear } from './senses.ts';
 import { doublingTime, spawnCreature } from './spawn.ts';
 import { Behavior, pickSpecies, speciesOf } from './species.ts';
-import { feedVirus, keepViruses } from './viruses.ts';
+import { chargeVirus, feedVirus, keepViruses } from './viruses.ts';
 
 const WALL_MARGIN = 60;
 const FLOW_CARRY = 0.62;
@@ -106,6 +106,7 @@ function graze(creature: Creature): void {
 function live(creature: Creature, dt: number, counts: Map<number, number>): boolean {
   if (creature.hostId) return holdLatch(creature);
   feedVirus(creature);
+  chargeVirus(creature, dt);
   startDivision(creature, counts);
   move(creature, dt, think(creature, dt));
   graze(creature);

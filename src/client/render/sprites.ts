@@ -4,7 +4,7 @@ import type { ShaderProgram } from '../gl/program.ts';
 import { programs } from '../gl/programs.ts';
 import { backdrop } from '../gl/screen.ts';
 import { vividColor } from '../color.ts';
-import { growth, inView, state, type CreatureVisual } from '../state.ts';
+import { growth, inView, state, type CreatureVisual, type FoodVisual } from '../state.ts';
 import { bubbles, debris } from '../world/decor.ts';
 import { setScreen, setView } from './view.ts';
 
@@ -47,10 +47,14 @@ function stateTime(creature: CreatureVisual): number {
   return (performance.now() - creature.stateSince) / 1000;
 }
 
-export function drawCreatures(time: number): void {
+export function drawCreatures(
+  time: number,
+  list: Iterable<CreatureVisual> = state.creatures.values(),
+  cull = true,
+): void {
   creatures.begin();
-  for (const creature of state.creatures.values()) {
-    if (!inView(creature, 0.62, 60)) continue;
+  for (const creature of list) {
+    if (cull && !inView(creature, 0.62, 60)) continue;
     const { x, y, radius, kind, color, angle, phase } = creature;
     if (
       !creatures.add([
@@ -74,10 +78,10 @@ export function drawCreatures(time: number): void {
   flush(creatures, programs.creature, false);
 }
 
-export function drawFood(time: number): void {
+export function drawFood(time: number, list: Iterable<FoodVisual> = state.food.values(), cull = true): void {
   food.begin();
-  for (const item of state.food.values()) {
-    if (item.alpha < 0.015 || !inView(item, 0.65, 80)) continue;
+  for (const item of list) {
+    if (item.alpha < 0.015 || (cull && !inView(item, 0.65, 80))) continue;
     const { color } = item;
     if (
       !food.add([

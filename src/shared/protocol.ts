@@ -24,6 +24,7 @@ export const EventKind = {
   Attack: 31,
   Hit: 32,
   Toxin: 33,
+  Spine: 34,
 } as const;
 
 export const ObstacleKind = { Grain: 0, Fiber: 1, Bubble: 2 } as const;
@@ -47,6 +48,7 @@ export const CreatureState = {
   Divide: 6,
   Latch: 7,
   Reverse: 8,
+  Charge: 9,
 } as const;
 
 export const FoodVariety = { Algae: 0, Plant: 1, Detritus: 2, Pollen: 3, Vesicle: 4 } as const;

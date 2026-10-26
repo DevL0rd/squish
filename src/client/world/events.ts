@@ -1,7 +1,7 @@
 import { ATTACKS, EventKind, Infection, INFECTIONS, type WireEvent } from '../../shared/protocol.ts';
 import { playSfx } from '../audio.ts';
 import { startInjection } from './injections.ts';
-import { onAttack, onHit, onToxin } from './combat-events.ts';
+import { onAttack, onHit, onSpine, onToxin } from './combat-events.ts';
 import type { CellVisual } from '../cell/cell.ts';
 import { MAX_SPLATS } from '../render/fluid.ts';
 import { showStatus } from '../dom.ts';
@@ -315,6 +315,7 @@ const handlers: Readonly<Record<number, (event: WireEvent) => void>> = {
   [EventKind.Attack]: onAttack,
   [EventKind.Hit]: onHit,
   [EventKind.Toxin]: onToxin,
+  [EventKind.Spine]: onSpine,
 };
 
 export function processEvent(event: WireEvent): void {

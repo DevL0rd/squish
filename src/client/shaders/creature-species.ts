@@ -119,13 +119,15 @@ Organism virus(vec2 p, float t) {
     float head = length(p - dir * 0.76) - 0.07;
     spikes = max(spikes, smoothstep(0.02, -0.02, min(stalk, head)));
   }
+  float charge = abs(vState - 9.0) < 0.5 ? clamp(vStateTime / 4.0, 0.0, 1.0) : 0.0;
+  float throb = 0.75 + 0.25 * sin(vStateTime * mix(4.0, 26.0, charge));
   o.d = capsid;
-  o.fringe = spikes;
+  o.fringe = max(spikes, charge * charge * smoothstep(1.0, 0.45, r) * 0.6 * throb);
   float facets = smoothstep(0.04, 0.0, abs(fract(angle * 3.0 / 6.2832 + r * 1.5) - 0.5) - 0.44);
   o.dense = facets * 0.4 + smoothstep(0.35, 0.0, r) * 0.4;
   o.clear = 0.0;
   o.pigment = 0.6;
-  o.accent = vec3(0.0);
+  o.accent = vec3(1.0, 0.45, 0.32) * charge * charge * 1.6 * throb * smoothstep(0.8, 0.0, r);
   return o;
 }
 

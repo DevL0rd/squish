@@ -51,3 +51,11 @@ export function onToxin(event: WireEvent): void {
   const distance = Math.hypot(event.x - state.camera.x, event.y - state.camera.y);
   if (distance < state.camera.width) playSfx('bomb', 1 - distance / state.camera.width);
 }
+
+export function onSpine(event: WireEvent): void {
+  const virus = state.creatures.get(event.predatorId);
+  const from = virus ? { x: virus.x, y: virus.y } : { x: event.x, y: event.y };
+  addShot(Weapon.Dart, from, { x: event.x, y: event.y }, event.amount, event.color);
+  const distance = Math.hypot(from.x - state.camera.x, from.y - state.camera.y);
+  if (distance < state.camera.width) playSfx('dart', 0.6 * (1 - distance / state.camera.width));
+}
