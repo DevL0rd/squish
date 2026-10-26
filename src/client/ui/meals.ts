@@ -1,4 +1,4 @@
-import { digestionRate, type Rgb } from '../../shared/math.ts';
+import { digestionRate, type Rgb, digestSpeed } from '../../shared/math.ts';
 import { digestFill, digestLabel, mealsList, pigmentDot, pigmentLabel } from '../dom.ts';
 import { ownCells } from '../state.ts';
 
@@ -21,7 +21,6 @@ const CREATURE_NAMES = [
 const HUES = ['crimson', 'amber', 'chartreuse', 'viridian', 'teal', 'azure', 'indigo', 'violet', 'magenta', 'crimson'];
 const MAX_MEALS = 6;
 const DIGEST_TIME = 10;
-const DIGEST_DRAG = 0.035;
 
 interface Meal {
   readonly name: string;
@@ -95,7 +94,8 @@ export function updateMeals(dt: number): void {
   if (!cells.length) return;
   const biggest = Math.max(...cells.map((cell) => cell.radius));
   load *= Math.exp((-dt * digestionRate(biggest)) / DIGEST_TIME);
-  const speed = 1 / (1 + (load / cells.length) * DIGEST_DRAG);
+  const mass = cells.reduce((sum, cell) => sum + cell.mass, 0);
+  const speed = digestSpeed(load, mass);
   digestLabel.textContent = `speed ${Math.round(speed * 100)}%`;
   digestFill.style.width = `${Math.round((1 - speed) * 100)}%`;
   const mix = cells.reduce<[number, number, number]>(

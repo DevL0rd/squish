@@ -11,6 +11,7 @@ import { emit, nextId, randomWorld, toBytes, world } from './world.ts';
 const COHESION_BUCKET = 48;
 const COHESION_REACH = 34;
 const WAKE_SCALE = 2.4;
+const CELL_SOFTNESS = 0.35;
 const FLOW_STRIDE = 3;
 const COHESION_STRIDE = 3;
 const EJECTA_LIFETIME = 12000;
@@ -230,7 +231,7 @@ function immune(player: Player, food: Food): boolean {
 function feedCell(player: Player, cell: Cell): void {
   for (const food of foodsNear(cell.x, cell.y, cell.radius * WAKE_SCALE)) {
     if (!immune(player, food) && touches(cell, food, 0.35)) eatFood(cell, food);
-    else if (cell.radius <= food.radius * EDIBLE_RATIO) shoveApart(cell, cell.mass, food, food.mass);
+    else if (cell.radius <= food.radius * EDIBLE_RATIO) shoveApart(cell, cell.mass, food, food.mass, CELL_SOFTNESS);
     else pushInWake(cell, food);
   }
 }

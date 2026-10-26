@@ -27,5 +27,5 @@ void main() {
     if (falloff < 0.01) continue;
     col += uLightColor[i] * falloff * uLightIntensity[i] * 0.075 * transmit(vWorld, uLightPos[i], uLightBody[i] * 1.85);
   }
-  outColor = vec4(col, 0.0);
+  outColor = vec4(col * (1.0 - sampleOccluder(vWorld).a * 0.9), 0.0);
 }`;

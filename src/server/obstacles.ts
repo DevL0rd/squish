@@ -171,9 +171,9 @@ function contactWith(obstacle: Obstacle, body: Point, radius: number): Contact |
   return { normal: toWorldVector(obstacle, outward), depth };
 }
 
-export function collideBody(body: Body): void {
-  for (const obstacle of nearby(body, body.radius)) {
-    const contact = contactWith(obstacle, body, body.radius);
+export function collideBody(body: Body, radius = body.radius): void {
+  for (const obstacle of nearby(body, radius)) {
+    const contact = contactWith(obstacle, body, radius);
     if (!contact) continue;
     body.x += contact.normal.x * contact.depth;
     body.y += contact.normal.y * contact.depth;

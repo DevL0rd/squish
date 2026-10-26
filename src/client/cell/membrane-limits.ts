@@ -28,6 +28,25 @@ export function shutWall(ring: Limited, wall: Wall): void {
   }
 }
 
+export interface Round {
+  readonly x: number;
+  readonly y: number;
+  readonly radius: number;
+}
+
+export function shutRound(ring: Limited, round: Round): void {
+  const reach = round.radius + WALL_SEAM;
+  for (let i = 0; i < ring.count; i += 1) {
+    const dx = at(ring.x, i) - round.x;
+    const dy = at(ring.y, i) - round.y;
+    const squared = dx * dx + dy * dy;
+    if (squared >= reach * reach) continue;
+    const length = Math.sqrt(squared) || 1e-3;
+    ring.x[i] = round.x + (dx / length) * reach;
+    ring.y[i] = round.y + (dy / length) * reach;
+  }
+}
+
 export function containRing(ring: Limited, anchor: Point): void {
   if (ringArea(ring) <= 0) {
     ring.replace(circleRing(ring.count, anchor, ring.radius));
@@ -44,7 +63,7 @@ export function containRing(ring: Limited, anchor: Point): void {
   }
 }
 
-const PINCH_GAP = 0.2;
+const PINCH_GAP = 0.3;
 
 export interface Pinch {
   readonly share: number;

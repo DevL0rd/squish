@@ -35,10 +35,10 @@ interface Round extends Body {
 
 const BOUNCE = 0.6;
 
-export function shoveApart(a: Round, massA: number, b: Round, massB: number): void {
+export function shoveApart(a: Round, massA: number, b: Round, massB: number, softness = 1): void {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
-  const reach = a.radius + b.radius;
+  const reach = a.radius * softness + b.radius;
   const squared = dx * dx + dy * dy;
   if (squared >= reach * reach) return;
   const distance = Math.sqrt(squared) || 0.001;

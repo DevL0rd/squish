@@ -1,3 +1,4 @@
+import type { Round } from './membrane-limits.ts';
 import type { Wall } from '../world/obstacles.ts';
 import { mulberry32, radiusFor, type Rgb } from '../../shared/math.ts';
 import type { WireCell } from '../../shared/protocol.ts';
@@ -86,18 +87,23 @@ export function toLocal(cell: CellVisual, point: Point): Point {
 export interface MembraneStep {
   readonly planes: readonly Plane[];
   readonly walls: readonly Wall[];
+  readonly rounds: readonly Round[];
   readonly cleave: Cleave | null;
   readonly substeps: number;
 }
 
-export function stepMembrane(cell: CellVisual, dt: number, { planes, walls, cleave, substeps }: MembraneStep): void {
+export function stepMembrane(
+  cell: CellVisual,
+  dt: number,
+  { planes, walls, rounds, cleave, substeps }: MembraneStep,
+): void {
   cell.membrane.radius = cell.radius;
   for (const item of cell.organelles.items) {
     if (!item.cup) continue;
     item.cup.x = cell.center.x + item.x;
     item.cup.y = cell.center.y + item.y;
   }
-  cell.membrane.step(dt, { anchor: cell, vx: cell.vx, vy: cell.vy, planes, walls, cleave, substeps });
+  cell.membrane.step(dt, { anchor: cell, vx: cell.vx, vy: cell.vy, planes, walls, rounds, cleave, substeps });
   cell.center = ringCentroid(cell.membrane);
 }
 

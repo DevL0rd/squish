@@ -3,6 +3,7 @@ import { EventKind, FoodVariety } from '../shared/protocol.ts';
 import { MERGE_DELAY } from './config.ts';
 import { addFood } from './food.ts';
 import { blockedAt } from './obstacles.ts';
+import { foodsNear } from './life/senses.ts';
 import { blendPigment } from './pigment.ts';
 import { direction } from './physics.ts';
 import { makeCell, playerColor } from './players.ts';
@@ -178,8 +179,19 @@ export function severCell(player: Player, cell: Cell, aim: Point, share: number,
   launchPiece(player, cell, { aim, reach: 0.6, speed, mass });
 }
 
+const PRESS_REACH = 1.1;
+const EDIBLE_RATIO = 1.35;
+
+function pressed(cell: Cell): boolean {
+  if (blockedAt(cell, cell.radius * PRESS_REACH)) return true;
+  const big = (item: Point & { radius: number }): boolean =>
+    item.radius * EDIBLE_RATIO >= cell.radius &&
+    Math.hypot(item.x - cell.x, item.y - cell.y) < cell.radius * PRESS_REACH + item.radius;
+  return foodsNear(cell.x, cell.y, cell.radius * PRESS_REACH).some(big) || [...world.creatures.values()].some(big);
+}
+
 export function pinchCell(player: Player, cell: Cell, aim: Point, share: number): void {
-  if (world.now - player.lastSplit < PINCH_COOLDOWN || !blockedAt(cell, cell.radius * 1.1)) return;
+  if (world.now - player.lastSplit < PINCH_COOLDOWN || !pressed(cell)) return;
   player.lastSplit = world.now;
   severCell(player, cell, aim, clamp(share, 0.15, 0.85), PINCH_SPEED);
 }

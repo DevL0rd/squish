@@ -15,6 +15,7 @@ const LATCH_TIME = 1000;
 const EDIBLE_RATIO = 1.35;
 const VIRUS_MASS = 0.5;
 const CREATURE_VALUE = 0.7;
+const CELL_SOFTNESS = 0.35;
 
 function latchOn(creature: Creature): boolean {
   const host = nearestCell(creature, 0);
@@ -95,7 +96,7 @@ function swallowedBy(creature: Creature): Cell | undefined {
 function bump(creature: Creature): void {
   const near = nearestCell(creature, creature.radius);
   if (!near || near.cell.radius >= creature.radius * EDIBLE_RATIO) return;
-  shoveApart(near.cell, near.cell.mass, creature, (creature.radius / 5.2) ** 2);
+  shoveApart(near.cell, near.cell.mass, creature, (creature.radius / 5.2) ** 2, CELL_SOFTNESS);
 }
 
 function eaten(creature: Creature): boolean {

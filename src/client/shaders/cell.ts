@@ -127,7 +127,7 @@ void main() {
   vec3 col = back * exp(-dye * (0.6 + 0.8 * height)) * (0.8 + 0.2 * height);
   vec3 scatter = 1.0 - exp(-dye * 2.6);
   vec3 lightNormal = normalize(vec3(-normal * slope * 0.45, 1.0));
-  col += shade(scatter * mix(0.45, 0.8, hyaline), lightNormal, height, vWorld, 1.0) * (0.22 + 0.5 * height);
+  col += shade(scatter * mix(0.45, 0.8, hyaline), lightNormal, height, vWorld, 1.0) * (0.15 + 0.35 * height);
   col += uColor * 0.018 * height;
   col += (grain - 0.5) * 0.06 * hyaline * (0.4 + scatter);
   col += vec3(0.85, 0.95, 0.9) * speckle * 0.05;

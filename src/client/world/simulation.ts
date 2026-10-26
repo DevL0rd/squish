@@ -7,7 +7,7 @@ import { updateCamera } from './camera.ts';
 import { maintainDecor } from './decor.ts';
 import { updateParallax } from './parallax.ts';
 import { cleaveOf, divisionPairs, holdsRadius, isHidden, updateDivisions } from './division.ts';
-import { pinchOf } from '../cell/membrane-limits.ts';
+import { pinchOf, type Round } from '../cell/membrane-limits.ts';
 import { driftObstacles, obstacleWalls } from './obstacles.ts';
 import { uploadInterior } from './textures.ts';
 
@@ -77,13 +77,26 @@ function stepMembranes(dt: number): void {
   updateDivisions(state.cells);
 }
 
+const EDIBLE_RATIO = 1.35;
+
+function roundsNear(cell: CellVisual): Round[] {
+  const rounds: Round[] = [];
+  const blocks = (item: { x: number; y: number; radius: number }): boolean =>
+    item.radius * EDIBLE_RATIO >= cell.radius &&
+    Math.hypot(item.x - cell.x, item.y - cell.y) < cell.radius * 1.5 + item.radius;
+  for (const item of state.food.values()) if (blocks(item)) rounds.push(item);
+  for (const item of state.creatures.values()) if (blocks(item)) rounds.push(item);
+  return rounds;
+}
+
 function stepActive(cells: readonly CellVisual[], dt: number): void {
   const planes = contactPlanes(cells, divisionPairs());
   for (const cell of cells) {
     const walls = obstacleWalls(cell, cell.radius);
     const substeps = pixels(cell) < COARSE_PIXELS ? 1 : 3;
-    stepMembrane(cell, dt, { planes: planes.get(cell) ?? [], walls, cleave: cleaveOf(cell), substeps });
-    if (walls.length && cell.pid === state.me) notePinch(cell);
+    const rounds = roundsNear(cell);
+    stepMembrane(cell, dt, { planes: planes.get(cell) ?? [], walls, rounds, cleave: cleaveOf(cell), substeps });
+    if ((walls.length || rounds.length) && cell.pid === state.me) notePinch(cell);
   }
 }
 

@@ -20,6 +20,13 @@ export function pareto(random: () => number, alpha: number, limit: number): numb
   return Math.min(limit, (1 - random()) ** (-1 / alpha));
 }
 
+const DIGEST_LOAD = 1.5;
+const DIGEST_FLOOR = 20;
+
+export function digestSpeed(digesting: number, mass: number): number {
+  return 1 / (1 + (DIGEST_LOAD * digesting) / Math.max(mass, DIGEST_FLOOR));
+}
+
 export function radiusFor(mass: number): number {
   return 5.2 * Math.sqrt(Math.max(mass, 1));
 }

@@ -20,7 +20,7 @@ function buildLights(): number {
     .sort((a, b) => b.radius - a.radius)
     .slice(0, MAX_LIGHTS);
   lit.forEach((cell, i) => {
-    lightPositions.set([cell.x, cell.y], i * 2);
+    lightPositions.set([cell.center.x, cell.center.y], i * 2);
     lightColors.set(vividColor(cell.fluidColor), i * 3);
     lightRadii[i] = cell.radius * 3.2;
     lightIntensities[i] = clamp(cell.radius / 60, 0.4, 1.6);

@@ -33,7 +33,7 @@ function points(): number {
     .slice(0, MAX_POINT_LIGHTS);
   lit.forEach((cell, i) => {
     const color = vividColor(cell.fluidColor);
-    data.set([cell.x, cell.y, cell.radius * 3.2, Math.min(1.2, cell.radius / 70 + 0.3)], 16 + i * 4);
+    data.set([cell.center.x, cell.center.y, cell.radius * 3.2, Math.min(1.2, cell.radius / 70 + 0.3)], 16 + i * 4);
     data.set([color[0], color[1], color[2], 0], 16 + MAX_POINT_LIGHTS * 4 + i * 4);
   });
   return lit.length;

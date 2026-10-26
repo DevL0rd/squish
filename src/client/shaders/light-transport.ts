@@ -19,9 +19,10 @@ vec3 transmit(vec2 world, vec2 light, float stopAt) {
   vec3 through = vec3(1.0);
   float focus = 0.0;
   bool clear = sampleOccluder(world).a < 0.5;
+  float jitter = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453);
   for (int k = 1; k <= 8; k++) {
     if (k > uSteps) break;
-    vec2 p = mix(world, light, float(k) / float(uSteps + 1));
+    vec2 p = mix(world, light, (float(k) - jitter) / float(uSteps));
     if (distance(p, light) < stopAt) break;
     vec4 hit = sampleOccluder(p);
     if (!clear) {

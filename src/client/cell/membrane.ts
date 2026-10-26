@@ -1,7 +1,7 @@
 import type { Wall } from '../world/obstacles.ts';
 import { at, clamp, mulberry32 } from '../../shared/math.ts';
 import { ringArea, ringCentroid, type Point, type Ring } from './geometry.ts';
-import { containRing, shutWall } from './membrane-limits.ts';
+import { containRing, shutRound, shutWall, type Round } from './membrane-limits.ts';
 import { Lobes } from './lobes.ts';
 
 export interface Plane {
@@ -35,6 +35,7 @@ export interface Drive {
   readonly cleave: Cleave | null;
   readonly substeps: number;
   readonly walls: readonly Wall[];
+  readonly rounds: readonly Round[];
 }
 
 const ITERATIONS = 2;
@@ -113,7 +114,7 @@ export class Membrane implements Ring {
       if (drive.cleave) this.followHalves(drive.anchor, drive.cleave, h);
       else this.follow(drive.anchor, h);
       for (let iteration = 0; iteration < ITERATIONS; iteration += 1) {
-        this.constrain(drive.planes, drive.walls);
+        this.constrain(drive.planes, drive.walls, drive.rounds);
         if (drive.cleave) this.pinch(drive.anchor, drive.cleave);
       }
       if (!drive.cleave) this.untangle();
@@ -287,12 +288,13 @@ export class Membrane implements Ring {
     return width;
   }
 
-  private constrain(planes: readonly Plane[], walls: readonly Wall[]): void {
+  private constrain(planes: readonly Plane[], walls: readonly Wall[], rounds: readonly Round[]): void {
     this.edges();
     this.pressure();
     this.wrapCups();
     for (const plane of planes) this.clamp(plane);
     for (const wall of walls) shutWall(this, wall);
+    for (const round of rounds) shutRound(this, round);
     this.tension();
     this.repel();
   }
