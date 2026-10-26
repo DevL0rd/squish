@@ -1,12 +1,16 @@
 import { clamp } from '../shared/math.ts';
-import { soundButton } from './dom.ts';
+import { musicButton, soundButton } from './dom.ts';
+import { SOUNDS, type Sfx } from './sounds.ts';
+import { createMusic, setMusic, type Music } from './music.ts';
+import { onSettings, settings, updateSettings, type Settings } from './ui/settings.ts';
 
-export type Sfx = 'eat' | 'split' | 'spit' | 'merge' | 'death';
-
-interface Audio {
+export interface Audio {
   readonly context: AudioContext;
   readonly master: GainNode;
+  readonly effects: GainNode;
+  readonly ambience: GainNode;
   readonly noiseBuffer: AudioBuffer;
+  readonly music: Music;
   timer: number;
 }
 
@@ -17,19 +21,20 @@ interface Envelope {
   readonly gain: number;
 }
 
-interface Tone extends Envelope {
+export interface Tone extends Envelope {
   readonly type: OscillatorType;
   readonly delay?: number;
   readonly sweep?: number;
+  readonly wobble?: readonly [number, number];
 }
 
-interface Hiss extends Envelope {
+export interface Hiss extends Envelope {
   readonly q: number;
+  readonly delay?: number;
 }
 
-const MASTER_LEVEL = 0.6;
+const MASTER_LEVEL = 0.75;
 let audio: Audio | null = null;
-let muted = false;
 const lastPlayed = new Map<Sfx, number>();
 
 function oscillator(
@@ -91,14 +96,18 @@ function startWater(context: AudioContext, master: GainNode, buffer: AudioBuffer
 }
 
 export function startAmbience(): void {
-  if (audio || muted) return;
+  if (audio) return;
   try {
     const context = new AudioContext();
-    const master = gainNode(context, MASTER_LEVEL, context.destination);
-    startDrone(context, master);
+    const master = gainNode(context, 0.0001, context.destination);
+    const effects = gainNode(context, 1, master);
+    const ambience = gainNode(context, 1, master);
+    startDrone(context, ambience);
     const noiseBuffer = createNoise(context);
-    startWater(context, master, noiseBuffer);
-    audio = { context, master, noiseBuffer, timer: 0 };
+    startWater(context, ambience, noiseBuffer);
+    const music = createMusic(context, master);
+    audio = { context, master, effects, ambience, noiseBuffer, music, timer: 0 };
+    applyLevels(settings());
     if (context.state === 'suspended') void context.resume().catch(() => undefined);
     scheduleBubble();
   } catch {
@@ -112,7 +121,24 @@ function envelope(param: AudioParam, start: number, peak: number, attack: number
   param.exponentialRampToValueAtTime(0.0001, start + duration);
 }
 
-function tone(sound: Audio, level: number, spec: Tone): void {
+function wobble(
+  context: AudioContext,
+  node: OscillatorNode,
+  [rate, depth]: readonly [number, number],
+  start: number,
+  duration: number,
+): void {
+  const lfo = context.createOscillator();
+  lfo.frequency.value = rate;
+  const amount = context.createGain();
+  amount.gain.value = depth;
+  lfo.connect(amount);
+  amount.connect(node.frequency);
+  lfo.start(start);
+  lfo.stop(start + duration + 0.02);
+}
+
+export function tone(sound: Audio, level: number, spec: Tone, bus: AudioNode = sound.effects): void {
   const { context } = sound;
   const start = context.currentTime + (spec.delay ?? 0);
   const node = context.createOscillator();
@@ -122,14 +148,15 @@ function tone(sound: Audio, level: number, spec: Tone): void {
   node.frequency.exponentialRampToValueAtTime(Math.max(spec.to, 1), start + (spec.sweep ?? spec.duration));
   envelope(gain.gain, start, spec.gain * level, 0.012, spec.duration);
   node.connect(gain);
-  gain.connect(sound.master);
+  gain.connect(bus);
+  if (spec.wobble) wobble(context, node, spec.wobble, start, spec.duration);
   node.start(start);
   node.stop(start + spec.duration + 0.02);
 }
 
-function hiss(sound: Audio, level: number, spec: Hiss): void {
+export function hiss(sound: Audio, level: number, spec: Hiss, bus: AudioNode = sound.effects): void {
   const { context } = sound;
-  const now = context.currentTime;
+  const now = context.currentTime + (spec.delay ?? 0);
   const source = context.createBufferSource();
   source.buffer = sound.noiseBuffer;
   const filter = context.createBiquadFilter();
@@ -141,39 +168,17 @@ function hiss(sound: Audio, level: number, spec: Hiss): void {
   envelope(gain.gain, now, spec.gain * level, 0.02, spec.duration);
   source.connect(filter);
   filter.connect(gain);
-  gain.connect(sound.master);
+  gain.connect(bus);
   source.start(now);
   source.stop(now + spec.duration + 0.02);
 }
 
-const SOUNDS: Readonly<Record<Sfx, { readonly tones: readonly Tone[]; readonly hisses: readonly Hiss[] }>> = {
-  eat: {
-    tones: [{ type: 'sine', from: 210, to: 96, duration: 0.13, gain: 0.05 }],
-    hisses: [{ from: 1400, to: 500, duration: 0.07, gain: 0.02, q: 1.6 }],
-  },
-  split: {
-    tones: [{ type: 'sine', from: 150, to: 70, duration: 0.2, gain: 0.035 }],
-    hisses: [{ from: 420, to: 2400, duration: 0.26, gain: 0.055, q: 0.9 }],
-  },
-  spit: {
-    tones: [{ type: 'triangle', from: 420, to: 170, duration: 0.1, gain: 0.04 }],
-    hisses: [{ from: 900, to: 260, duration: 0.12, gain: 0.02, q: 1.4 }],
-  },
-  merge: {
-    tones: [
-      { type: 'sine', from: 128, to: 62, duration: 0.42, gain: 0.06 },
-      { type: 'sine', from: 760, to: 470, duration: 0.28, gain: 0.022, delay: 0.03 },
-    ],
-    hisses: [{ from: 620, to: 180, duration: 0.34, gain: 0.03, q: 0.8 }],
-  },
-  death: {
-    tones: [{ type: 'sawtooth', from: 190, to: 46, duration: 0.85, gain: 0.06 }],
-    hisses: [{ from: 500, to: 90, duration: 0.9, gain: 0.03, q: 0.7 }],
-  },
-};
+export function soundOut(): Audio | null {
+  return audio && !settings().muted ? audio : null;
+}
 
 export function playSfx(name: Sfx, volume: number): void {
-  if (!audio || muted) return;
+  if (!audio || settings().muted) return;
   const now = audio.context.currentTime;
   if (now - (lastPlayed.get(name) ?? 0) < 0.05) return;
   lastPlayed.set(name, now);
@@ -184,36 +189,53 @@ export function playSfx(name: Sfx, volume: number): void {
 }
 
 function scheduleBubble(): void {
-  if (!audio || muted) return;
+  if (!audio) return;
+  clearTimeout(audio.timer);
   audio.timer = window.setTimeout(
     () => {
-      if (!audio || muted) return;
-      tone(audio, 1, {
-        type: 'sine',
-        from: 240 + Math.random() * 600,
-        to: 120 + Math.random() * 220,
-        duration: 0.24,
-        sweep: 0.18,
-        gain: 0.018,
-      });
+      if (!audio) return;
+      tone(
+        audio,
+        1,
+        {
+          type: 'sine',
+          from: 240 + Math.random() * 600,
+          to: 120 + Math.random() * 220,
+          duration: 0.24,
+          sweep: 0.18,
+          gain: 0.018,
+        },
+        audio.ambience,
+      );
       scheduleBubble();
     },
     2600 + Math.random() * 5200,
   );
 }
 
-export function toggleSound(): void {
-  muted = !muted;
-  soundButton.setAttribute('aria-pressed', String(muted));
-  soundButton.setAttribute('aria-label', muted ? 'Unmute sound' : 'Mute sound');
-  if (muted) {
-    if (!audio) return;
-    audio.master.gain.setTargetAtTime(0.0001, audio.context.currentTime, 0.15);
-    clearTimeout(audio.timer);
-    return;
-  }
-  startAmbience();
+function applyLevels(levels: Settings): void {
+  soundButton.setAttribute('aria-pressed', String(levels.muted));
+  soundButton.setAttribute('aria-label', levels.muted ? 'Unmute sound' : 'Mute sound');
+  musicButton.setAttribute('aria-pressed', String(!levels.musicOn));
+  musicButton.setAttribute('aria-label', levels.musicOn ? 'Stop music' : 'Play music');
   if (!audio) return;
-  audio.master.gain.setTargetAtTime(MASTER_LEVEL, audio.context.currentTime, 0.3);
-  scheduleBubble();
+  const now = audio.context.currentTime;
+  audio.master.gain.setTargetAtTime(levels.muted ? 0.0001 : MASTER_LEVEL * levels.master, now, 0.2);
+  audio.effects.gain.setTargetAtTime(levels.effects, now, 0.1);
+  audio.ambience.gain.setTargetAtTime(levels.ambience, now, 0.3);
+  setMusic(audio.music, audio.context, levels.musicOn && !levels.muted ? levels.music : 0);
+  if (levels.muted) clearTimeout(audio.timer);
+  else scheduleBubble();
+}
+
+export function toggleSound(): void {
+  updateSettings({ muted: !settings().muted });
+}
+
+export function toggleMusic(): void {
+  updateSettings({ musicOn: !settings().musicOn });
+}
+
+export function bindAudioSettings(): void {
+  onSettings(applyLevels);
 }

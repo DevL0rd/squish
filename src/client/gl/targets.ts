@@ -1,3 +1,4 @@
+import { QUALITY, settings } from '../ui/settings.ts';
 import { coarsePointer } from '../dom.ts';
 import { floatLinear, gl, required } from './context.ts';
 
@@ -66,7 +67,11 @@ export class PingPong {
 }
 
 export const FIELD_SIZE = 64;
-export const fluidSize = Math.min(coarsePointer ? 640 : 1024, gl.getParameter(gl.MAX_TEXTURE_SIZE) as number);
+const preset = QUALITY[settings().quality].fluid;
+export const fluidSize = Math.min(
+  coarsePointer ? Math.min(640, preset) : preset,
+  gl.getParameter(gl.MAX_TEXTURE_SIZE) as number,
+);
 export const velocity = new PingPong(fluidSize);
 export const dye = new PingPong(fluidSize);
 export const pressure = new PingPong(fluidSize);

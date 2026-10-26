@@ -1,40 +1,13 @@
+import { settings } from './ui/settings.ts';
 import { WORLD, type Rgb } from '../shared/math.ts';
 import type { RosterEntry } from '../shared/protocol.ts';
-import type { Interior } from './interior/interior.ts';
-import type { SoftBody } from './softbody/softbody.ts';
+import type { CellVisual } from './cell/cell.ts';
 
 export const WORLD_CENTER = WORLD / 2;
 
-export interface CellVisual {
-  readonly id: number;
-  pid: number;
-  x: number;
-  y: number;
-  tx: number;
-  ty: number;
-  vx: number;
-  vy: number;
-  mass: number;
-  radius: number;
-  targetRadius: number;
-  hue: number;
-  name: string;
-  bot: boolean;
-  lastSeen: number;
-  mergeReady: boolean;
-  readonly soft: SoftBody;
-}
-
-export interface InteriorRecord {
-  readonly interior: Interior;
-  texture: WebGLTexture | null;
-  lastSeen: number;
-  fluidColor: Rgb | null;
-  colorTimer: number;
-}
-
 export interface FoodVisual {
   readonly id: number;
+  variety: number;
   x: number;
   y: number;
   tx: number;
@@ -43,6 +16,7 @@ export interface FoodVisual {
   targetRadius: number;
   color: Rgb;
   ejecta: boolean;
+  grow: number;
   alpha: number;
   targetAlpha: number;
   lastSeen: number;
@@ -61,18 +35,9 @@ export interface CreatureVisual {
   angle: number;
   targetAngle: number;
   phase: number;
-}
-
-export interface MergeGhost {
-  readonly survivorId: number;
-  readonly cell: CellVisual;
-  readonly record: InteriorRecord;
-  readonly startX: number;
-  readonly startY: number;
-  readonly startRadius: number;
-  life: number;
-  readonly maxLife: number;
-  mergeTimer: number;
+  state: number;
+  stateSince: number;
+  grow: number;
 }
 
 export interface Splat {
@@ -93,14 +58,13 @@ export interface SpitTint {
 export const state = {
   me: 0,
   joined: false,
+  joinedAt: 0,
   dead: false,
   roster: new Map<number, RosterEntry>(),
   cells: new Map<number, CellVisual>(),
   food: new Map<number, FoodVisual>(),
-  interiors: new Map<number, InteriorRecord>(),
   creatures: new Map<number, CreatureVisual>(),
   splats: [] as Splat[],
-  mergeGhosts: [] as MergeGhost[],
   spitTints: [] as SpitTint[],
   camera: { x: WORLD_CENTER, y: WORLD_CENTER, width: 1200, height: 800, ox: 0, oy: 0, shake: 0 },
   target: { x: WORLD_CENTER, y: WORLD_CENTER },
@@ -115,7 +79,8 @@ export function isMine(cell: { readonly pid: number }): boolean {
 }
 
 export function shake(amount: number): void {
-  state.camera.shake = Math.max(state.camera.shake, amount);
+  const { shake: enabled, reducedMotion } = settings();
+  if (enabled && !reducedMotion) state.camera.shake = Math.max(state.camera.shake, amount);
 }
 
 export function addSplat(splat: Splat): void {
@@ -144,4 +109,19 @@ export function inView(point: { readonly x: number; readonly y: number }, scale:
     Math.abs(point.x - camera.x) <= camera.width * scale + margin &&
     Math.abs(point.y - camera.y) <= camera.height * scale + margin
   );
+}
+
+const SETTLE_TIME = 2000;
+const GROW_TIME = 1.4;
+
+export function freshSpawn(point: { readonly x: number; readonly y: number }): boolean {
+  return state.joined && performance.now() - state.joinedAt > SETTLE_TIME && inView(point, 0.42, 0);
+}
+
+export function growStep(grow: number, dt: number): number {
+  return Math.min(1, grow + dt / GROW_TIME);
+}
+
+export function growth(item: { readonly grow: number }): number {
+  return item.grow * item.grow * (3 - 2 * item.grow);
 }

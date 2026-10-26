@@ -1,3 +1,7 @@
+import { creatureKinds } from './creature-kinds.ts';
+import { creatureSpecies } from './creature-species.ts';
+import { noise } from './noise.ts';
+
 export const creatureVertex = `#version 300 es
 precision highp float;
 layout(location = 0) in vec2 aCorner;
@@ -8,89 +12,96 @@ uniform vec2 uCamera;
 uniform vec2 uView;
 out vec2 vLocal;
 out vec4 vTint;
-out vec4 vBody;
+out float vKind;
 out float vPhase;
+out float vFade;
+out float vState;
+out float vStateTime;
 void main() {
-  float angle = aTint.a;
-  float c = cos(-angle);
-  float s = sin(-angle);
+  float c = cos(aTint.a);
+  float s = sin(aTint.a);
   vec2 corner = vec2(aCorner.x * c - aCorner.y * s, aCorner.x * s + aCorner.y * c);
   vec2 world = aBody.xy + corner * aBody.z;
-  vec2 clip = (world - uCamera) / (uView * 0.5);
-  gl_Position = vec4(clip, 0.0, 1.0);
-  vLocal = corner;
+  gl_Position = vec4((world - uCamera) / (uView * 0.5), 0.0, 1.0);
+  vLocal = aCorner;
   vTint = aTint;
-  vBody = aBody;
+  vKind = aBody.w;
   vPhase = aMotion.x;
+  vFade = aMotion.y;
+  vState = aMotion.z;
+  vStateTime = aMotion.w;
 }`;
 
 export const creatureFragment = `#version 300 es
 precision highp float;
 in vec2 vLocal;
 in vec4 vTint;
-in vec4 vBody;
+in float vKind;
 in float vPhase;
+in float vFade;
+in float vState;
+in float vStateTime;
 out vec4 outColor;
+${noise}
+
+bool inState(float code) {
+  return abs(vState - code) < 0.5;
+}
+
+float stateProgress(float seconds) {
+  return clamp(vStateTime / seconds, 0.0, 1.0);
+}
+
+struct Organism {
+  float d;
+  float fringe;
+  float dense;
+  float clear;
+  float pigment;
+  vec3 accent;
+};
+
+${creatureKinds}
+${creatureSpecies}
+
+const vec2 SHEAR = vec2(-0.6, 0.8);
+
+Organism organism(vec2 p, float t) {
+  if (vKind < 0.5) return paramecium(p, t);
+  if (vKind < 1.5) return euglena(p, t);
+  if (vKind < 2.5) return diatom(p, t);
+  if (vKind < 3.5) return rotifer(p, t);
+  if (vKind < 4.5) return bacillus(p, t);
+  if (vKind < 5.5) return coccus(p, t);
+  if (vKind < 6.5) return halteria(p, t);
+  if (vKind < 7.5) return volvox(p, t);
+  if (vKind < 8.5) return stentor(p, t);
+  if (vKind < 9.5) return tardigrade(p, t);
+  if (vKind < 10.5) return bdellovibrio(p, t);
+  if (vKind < 11.5) return virus(p, t);
+  return bacteriophage(p, t);
+}
 
 void main() {
-  float kind = vBody.w;
-  vec2 p = vLocal;
-  float r = length(p);
-  float angle = atan(p.y, p.x);
-  float body = 0.0;
-  float detail = 0.0;
-  float fringe = 0.0;
+  Organism o = organism(vLocal, vPhase);
+  float aa = max(fwidth(o.d), 0.004);
+  float body = smoothstep(aa, -aa, o.d);
+  float danger = step(9.5, vKind) * step(vKind, 11.5);
+  float warning = danger * exp(-max(o.d, 0.0) * 9.0) * (0.55 + 0.45 * sin(vPhase * 3.0));
+  if (body < 0.003 && o.fringe < 0.003 && warning < 0.01) discard;
+  vec2 gradient = vec2(dFdx(o.d), dFdy(o.d));
+  float slope = clamp(-o.d * 12.0, 0.0, 1.0);
+  float relief = dot(normalize(gradient + 1e-6), SHEAR) * (1.0 - slope) * body;
   vec3 tint = vTint.rgb;
-  if (kind < 0.5) {
-    vec2 q = vec2(p.x, p.y / 0.62);
-    float d = length(q);
-    body = smoothstep(1.0, 0.9, d);
-    float beat = sin(angle * 26.0 + vPhase * 6.0) * 0.5 + 0.5;
-    fringe = smoothstep(1.12, 0.98, d) * (1.0 - smoothstep(0.98, 0.92, d)) * beat;
-    detail = smoothstep(0.5, 0.0, length(p - vec2(0.24, -0.12))) * 0.55;
-    tint *= 0.8 + 0.2 * beat;
-  } else if (kind < 1.5) {
-    float taper = 1.0 - 0.42 * smoothstep(-0.9, 0.9, p.x);
-    float d = length(vec2(p.x, p.y / max(taper, 0.2)));
-    body = smoothstep(1.0, 0.86, d);
-    float tail = 1.0 - smoothstep(0.0, 0.06, abs(p.y - sin((p.x + 1.2) * 7.0 + vPhase * 5.0) * 0.16));
-    fringe = tail * step(0.9, p.x) * (1.0 - step(2.2, p.x));
-    detail = smoothstep(0.16, 0.0, length(p - vec2(-0.55, 0.16))) * 0.8;
-    tint *= 0.85 + 0.15 * sin(vPhase * 2.0);
-  } else if (kind < 2.5) {
-    body = smoothstep(1.0, 0.92, r);
-    detail = 0.35 * (0.5 + 0.5 * sin(angle * 14.0 + vPhase * 0.6));
-    fringe = smoothstep(1.0, 0.86, r) * (1.0 - smoothstep(0.86, 0.74, r)) * 0.7;
-    detail += smoothstep(0.28, 0.0, r) * 0.5;
-  } else if (kind < 4.5) {
-    vec2 q = vec2(p.x / 1.15, p.y / 0.52);
-    float d = length(q);
-    body = smoothstep(1.0, 0.86, d);
-    float capsule = smoothstep(0.42, 0.8, abs(p.x)) * (1.0 - smoothstep(0.86, 1.0, abs(p.x)));
-    detail = capsule * 0.35;
-    float wave = sin((p.x - 0.9) * 9.0 - vPhase * 7.0) * 0.1;
-    float tail = 1.0 - smoothstep(0.0, 0.05, abs(p.y - wave));
-    fringe = tail * step(0.95, p.x) * (1.0 - step(2.1, p.x));
-    body = max(body, smoothstep(1.0, 0.8, length(vec2(p.x, p.y / 0.9))) * 0.0);
-  } else if (kind < 5.5) {
-    body = smoothstep(1.0, 0.82, r);
-    detail = smoothstep(0.55, 0.0, r) * 0.5;
-    fringe = smoothstep(1.0, 0.9, r) * (1.0 - smoothstep(0.9, 0.8, r)) * 0.6;
-  } else {
-    vec2 q = vec2(p.x, (p.y - 0.12) / 0.85);
-    float d = length(q);
-    body = smoothstep(1.0, 0.9, d);
-    float corona = smoothstep(1.02, 0.86, d) * (1.0 - smoothstep(0.86, 0.7, d));
-    float spin = 0.5 + 0.5 * sin(angle * 18.0 - vPhase * 8.0);
-    fringe = corona * spin;
-    float foot = 1.0 - smoothstep(0.05, 0.11, abs(p.y + 0.72)) * step(-0.2, p.x) * step(p.x, 0.2) * step(0.6, p.y);
-    body = max(body, foot);
-    detail = smoothstep(0.3, 0.0, length(p - vec2(0.0, 0.1))) * 0.4;
-  }
-  if (body <= 0.001 && fringe <= 0.001) discard;
-  vec3 col = tint * (0.34 + 0.62 * body) + tint * detail * 0.65;
-  col += vec3(0.4, 0.56, 0.5) * fringe * 1.1;
-  col += vec3(0.55, 0.66, 0.6) * smoothstep(1.0, 0.9, r) * (1.0 - smoothstep(0.9, 0.78, r)) * 0.18;
-  float alpha = max(body * 0.55, fringe * 0.55) * smoothstep(1.08, 0.92, max(r, body));
-  outColor = vec4(col, clamp(alpha, 0.0, 0.92));
+  vec3 col = mix(vec3(0.16, 0.2, 0.19), tint * 0.6, 0.55) * (0.5 + 0.5 * slope);
+  col = mix(col, tint * 0.3, o.dense);
+  col = mix(col, tint * 1.1 + 0.1, o.pigment * 0.35);
+  col += vec3(0.75, 0.9, 0.86) * o.clear * 0.25;
+  col += o.accent;
+  col += vec3(0.85, 0.97, 0.93) * relief * 0.35;
+  col += mix(vec3(0.8, 0.95, 0.9), tint, 0.3) * o.fringe * 0.55;
+  float alpha = max(body * (0.5 + 0.3 * o.dense) * (0.55 + 0.45 * slope), o.fringe * 0.6);
+  col = mix(col, vec3(1.0, 0.16, 0.1), warning * (1.0 - body) * 0.9);
+  alpha = max(alpha, warning * 0.45);
+  outColor = vec4(col, clamp(alpha, 0.0, 0.94) * vFade);
 }`;

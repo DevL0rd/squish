@@ -1,171 +1,124 @@
-import { at, clamp, type Rgb } from '../../shared/math.ts';
+import { at, clamp } from '../../shared/math.ts';
+import type { CellVisual } from '../cell/cell.ts';
+import { interiorScale } from '../cell/cell.ts';
+import type { Ring } from '../cell/geometry.ts';
+import { OrganelleKind, type Organelle } from '../cell/organelles.ts';
 import { vividColor } from '../color.ts';
 import { bindTexture, blend, drawQuad, gl } from '../gl/context.ts';
+import { InstanceBatch } from '../gl/instances.ts';
 import type { ShaderProgram } from '../gl/program.ts';
 import { programs } from '../gl/programs.ts';
-import { screen, screenTargets } from '../gl/screen.ts';
+import { backdrop, screen, screenTargets } from '../gl/screen.ts';
 import { bindTarget } from '../gl/targets.ts';
-import { inView, state, type CellVisual, type InteriorRecord } from '../state.ts';
-import { cellFluidColor, ensureTexture, interiorFor } from '../world/interiors.ts';
+import { MAX_RENDER_POINTS } from '../shaders/cell.ts';
+import { inView, state } from '../state.ts';
+import { isHidden } from '../world/division.ts';
+import { interiorTexture } from '../world/textures.ts';
 import { setScreen, setView } from './view.ts';
 
-const HARMONICS = 7;
-const MAX_INTERIOR_ITEMS = 8;
-const MAX_BRIDGES = 12;
+const points = new Float32Array(MAX_RENDER_POINTS * 2);
+const organelles = new InstanceBatch(3, 12000);
+const meals = new InstanceBatch(3, 1024);
+const prey = new InstanceBatch(3, 256);
 
-const shapeData = new Float32Array(HARMONICS * 4);
-const shapeDataA = new Float32Array(HARMONICS * 4);
-const shapeDataB = new Float32Array(HARMONICS * 4);
-const foodData = new Float32Array(MAX_INTERIOR_ITEMS * 4);
-const foodColors = new Float32Array(MAX_INTERIOR_ITEMS * 3);
-const organelleData = new Float32Array(MAX_INTERIOR_ITEMS * 4);
-
-function fillShape(cell: CellVisual, target: Float32Array): void {
-  const { soft } = cell;
-  const count = Math.min(soft.count, 64);
-  const inv = 1 / count;
-  target.fill(0);
+function subdivide(ring: Ring): number {
+  const count = Math.min(ring.x.length, MAX_RENDER_POINTS / 2);
   for (let i = 0; i < count; i += 1) {
-    const radius = Math.hypot(at(soft.px, i), at(soft.py, i));
-    const angle = i * inv * Math.PI * 2;
-    target[0] = at(target, 0) + radius * inv;
-    for (let k = 1; k < HARMONICS; k += 1) {
-      target[k * 4] = at(target, k * 4) + radius * Math.cos(k * angle) * 2 * inv;
-      target[k * 4 + 1] = at(target, k * 4 + 1) + radius * Math.sin(k * angle) * 2 * inv;
-    }
+    const prev = (i + count - 1) % count;
+    const next = (i + 1) % count;
+    const after = (i + 2) % count;
+    points[i * 4] = at(ring.x, i);
+    points[i * 4 + 1] = at(ring.y, i);
+    points[i * 4 + 2] = (-at(ring.x, prev) + 9 * at(ring.x, i) + 9 * at(ring.x, next) - at(ring.x, after)) / 16;
+    points[i * 4 + 3] = (-at(ring.y, prev) + 9 * at(ring.y, i) + 9 * at(ring.y, next) - at(ring.y, after)) / 16;
   }
+  return count * 2;
 }
 
-function shapeExtent(): number {
-  let extent = at(shapeData, 0);
-  for (let k = 1; k < HARMONICS; k += 1) extent += Math.hypot(at(shapeData, k * 4), at(shapeData, k * 4 + 1));
-  return extent;
+function extent(cell: CellVisual): number {
+  const { membrane, center } = cell;
+  let reach = 0;
+  for (let i = 0; i < membrane.count; i += 1) {
+    reach = Math.max(reach, Math.hypot(at(membrane.x, i) - center.x, at(membrane.y, i) - center.y));
+  }
+  return reach + cell.radius * 0.25 + (state.camera.height / screen.height) * 14;
 }
 
-function uploadInterior(program: ShaderProgram, record: InteriorRecord, color: Rgb): void {
-  const sprites = record.interior.food.sprites();
-  foodData.fill(0);
-  foodColors.fill(0);
-  sprites.forEach((item, i) => {
-    foodData.set([item.x, item.y, item.size, item.alpha], i * 4);
-    foodColors.set(item.color, i * 3);
-  });
-  const organelles = record.interior.organelles.slice(0, MAX_INTERIOR_ITEMS);
-  organelleData.fill(0);
-  organelles.forEach((item, i) => {
-    organelleData.set([item.x, item.y, item.radius, item.type], i * 4);
-  });
+function drawBody(program: ShaderProgram, cell: CellVisual): void {
+  bindTexture(1, interiorTexture(cell));
+  const count = subdivide(cell.membrane);
   program
-    .int('uFoodCount', sprites.length)
-    .vec4s('uFood', foodData)
-    .vec3s('uFoodColor', foodColors)
-    .int('uOrganelleCount', organelles.length)
-    .vec4s('uOrganelle', organelleData)
-    .vec3('uOrganelleColor', [color[0] * 0.45 + 0.16, color[1] * 0.45 + 0.2, color[2] * 0.45 + 0.2]);
-}
-
-interface Membrane {
-  readonly cell: CellVisual;
-  readonly record: InteriorRecord;
-  readonly color: Rgb;
-  readonly opacity: number;
-}
-
-function drawMembrane(program: ShaderProgram, membrane: Membrane): void {
-  const { cell, record, color } = membrane;
-  bindTexture(1, ensureTexture(record));
-  program
+    .vec2s('uPoints', points)
+    .int('uCount', count)
+    .vec2('uCenter', cell.center.x, cell.center.y)
+    .float('uExtent', extent(cell))
     .float('uRadius', cell.radius)
-    .vec3('uColor', color)
+    .float('uScale', interiorScale(cell))
+    .vec3('uColor', vividColor(cell.fluidColor))
     .float('uSeed', (cell.id % 997) * 0.137)
-    .float('uOpacity', membrane.opacity);
-  uploadInterior(program, record, color);
-  fillShape(cell, shapeData);
-  program
-    .vec2('uCenter', cell.soft.cx, cell.soft.cy)
-    .float('uExtent', shapeExtent() * 1.03 + 2)
-    .vec4s('uShape', shapeData);
-  blend(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    .float('uOpacity', 1);
   drawQuad();
 }
 
-function prepareCellProgram(time: number): ShaderProgram {
-  bindTexture(0, screenTargets().base.texture);
-  return setScreen(setView(programs.cell)).float('uTime', time).int('uBackground', 0).int('uInterior', 1);
+function visibleCells(): CellVisual[] {
+  return [...state.cells.values()]
+    .filter((cell) => !isHidden(cell) && inView(cell, 0.7, cell.radius * 1.6))
+    .sort((a, b) => a.radius - b.radius);
 }
 
 export function drawCellBodies(time: number): void {
   bindTarget(screenTargets().cells, screen.width, screen.height);
-  const program = prepareCellProgram(time);
-  const cells = [...state.cells.values()].sort((a, b) => a.radius - b.radius);
-  for (const cell of cells) {
-    if (!inView(cell, 0.7, cell.radius * 1.4)) continue;
-    const record = interiorFor(cell);
-    const color = vividColor(record.fluidColor ?? cellFluidColor(cell));
-    drawMembrane(program, { cell, record, color, opacity: 1 });
-  }
-  gl.disable(gl.BLEND);
-}
-
-export function drawMergeGhosts(time: number): void {
-  if (!state.mergeGhosts.length) return;
-  const program = prepareCellProgram(time);
-  for (const ghost of state.mergeGhosts) {
-    const { record } = ghost;
-    const color = vividColor(record.fluidColor ?? record.interior.averageColor());
-    drawMembrane(program, { cell: ghost.cell, record, color, opacity: clamp(ghost.life / ghost.maxLife, 0, 1) });
-  }
-  gl.disable(gl.BLEND);
-}
-
-function bridgePairs(): [CellVisual, CellVisual][] {
-  const cells = [...state.cells.values()];
-  const pairs: [CellVisual, CellVisual][] = [];
-  for (let i = 0; i < cells.length && pairs.length < MAX_BRIDGES; i += 1) {
-    const a = cells[i];
-    for (let j = i + 1; a && j < cells.length && pairs.length < MAX_BRIDGES; j += 1) {
-      const b = cells[j];
-      if (b && Math.hypot(a.x - b.x, a.y - b.y) <= a.radius + b.radius + 20) pairs.push([a, b]);
-    }
-  }
-  return pairs;
-}
-
-function bridgeColor(record: InteriorRecord): Rgb {
-  return vividColor(record.fluidColor ?? record.interior.averageColor());
-}
-
-function drawBridge(program: ShaderProgram, a: CellVisual, b: CellVisual): void {
-  const recordA = interiorFor(a);
-  const recordB = interiorFor(b);
-  bindTexture(1, ensureTexture(recordA));
-  bindTexture(2, ensureTexture(recordB));
-  const gap = Math.hypot(a.x - b.x, a.y - b.y) - a.radius - b.radius;
-  fillShape(a, shapeDataA);
-  fillShape(b, shapeDataB);
-  program
-    .vec2('uCenterA', a.soft.cx, a.soft.cy)
-    .vec2('uCenterB', b.soft.cx, b.soft.cy)
-    .float('uRadiusA', a.radius)
-    .float('uRadiusB', b.radius)
-    .vec3('uColorA', bridgeColor(recordA))
-    .vec3('uColorB', bridgeColor(recordB))
-    .float('uOpacity', clamp(1 - gap / 16, 0, 1))
-    .vec4s('uShapeA', shapeDataA)
-    .vec4s('uShapeB', shapeDataB);
-  drawQuad();
-}
-
-export function drawFusionBridges(time: number): void {
-  const pairs = bridgePairs();
-  if (!pairs.length) return;
-  bindTexture(0, screenTargets().base.texture);
-  const program = setScreen(setView(programs.fusion))
-    .float('uTime', time)
-    .int('uBackground', 0)
-    .int('uInteriorA', 1)
-    .int('uInteriorB', 2);
+  bindTexture(0, backdrop());
+  const program = setScreen(setView(programs.cell)).float('uTime', time).int('uBackground', 0).int('uInterior', 1);
   blend(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-  for (const [a, b] of pairs) drawBridge(program, a, b);
+  for (const cell of visibleCells()) drawBody(program, cell);
+  gl.disable(gl.BLEND);
+}
+
+function batchFor(kind: number): InstanceBatch {
+  if (kind === OrganelleKind.Food) return meals;
+  return kind === OrganelleKind.Creature ? prey : organelles;
+}
+
+function instance(item: Organelle, x: number, y: number, fade: number): number[] {
+  const [r, g, b] = item.color;
+  const px = x + item.x;
+  const py = y + item.y;
+  if (item.kind === OrganelleKind.Food) {
+    return [px, py, item.radius * 2.1, item.phase, r, g, b, fade, item.variety, 0, 0, 0];
+  }
+  if (item.kind === OrganelleKind.Creature) {
+    return [px, py, item.radius * 2.4, item.variety, r, g, b, item.angle, item.phase + state.time, fade, 0, 0];
+  }
+  return [px, py, item.radius, item.kind, r, g, b, fade, item.phase, 0, 0, 0];
+}
+
+function queueOrganelles(cell: CellVisual): boolean {
+  const { x, y } = cell.center;
+  for (const item of cell.organelles.items) {
+    const fade = Number.isFinite(item.maxLife) ? clamp(item.life / Math.min(item.maxLife, 1.5), 0, 1) : 1;
+    if (!batchFor(item.kind).add(instance(item, x, y, fade))) return false;
+  }
+  return true;
+}
+
+export function drawOrganelles(time: number): void {
+  for (const batch of [organelles, meals, prey]) batch.begin();
+  for (const cell of visibleCells()) {
+    if (!queueOrganelles(cell)) break;
+  }
+  blend(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  if (organelles.count) {
+    setView(programs.organelle).float('uTime', time);
+    organelles.draw();
+  }
+  if (meals.count) {
+    setView(programs.food).float('uTime', time);
+    meals.draw();
+  }
+  if (prey.count) {
+    setView(programs.creature);
+    prey.draw();
+  }
   gl.disable(gl.BLEND);
 }

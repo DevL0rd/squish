@@ -34,6 +34,7 @@ npm run dev
 - `format:check`: Prettier.
 - `spell`: cspell; project words live in `cspell.json`.
 - `hygiene`: 400-line cap on every source file, no comments, kebab-case file names, no empty files.
+- `shaders`: compiles every GLSL shader with glslangValidator so a shader error can never ship.
 - `deadcode`: knip finds unused files, exports and dependencies.
 - `duplicates`: jscpd fails on any repeated block of 5 or more lines in `src`, `tests` or `scripts`.
 - `test:unit`: protocol round trips and a live server boot and join.
@@ -46,8 +47,8 @@ npm run dev
 
 ## Controls
 
-- Desktop: move the pointer to steer, Space to split, W to spit, M to mute.
-- Touch: drag on the left side for the joystick; use Split and Spit on the right.
+- Desktop: move the pointer to steer, Space to split, W to attack (spit at level 1), Shift to boost, M to mute, N to toggle music, scroll to zoom.
+- Touch: drag on the left side for the joystick; use Split, the attack button and Boost on the right.
 
 ## Notes
 
@@ -55,3 +56,9 @@ npm run dev
 - Each cell has its own small liquid simulation; the cell body takes its colour from that fluid.
 - Food preserves its size when it enters a cell.
 - Cells that press together with compatible sizes fuse; their fluids and food merge.
+- Growing levels you up (mass 200, 600, 1400, 3000): a needle injects new DNA and upgrades your attack from spit to trichocyst volley, toxicyst dart, osmotic pulse and lysosome bomb. Attacks cost mass, split rivals and wound bosses.
+- Eating small creatures charges up to two boosts; eating diatoms, rotifers, Stentor and tardigrades gives a fading shield.
+- Random events: four giant boss organisms with HP and a micropipette spotlight that drains or injects mass.
+- Bots have personalities (hunter, grazer, coward, trickster, brawler, opportunist) and use the same mechanics as players.
+- Admin panel: with `npm run dev` the server runs with `--admin`, and a player named DevL0rd gets an Admin button (or the backquote key) to force events, spawn things and test.
+- Background music: a 6 minute seamless Opus loop in `public/music`.

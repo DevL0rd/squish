@@ -1,8 +1,10 @@
 import type { Rgb } from '../../shared/math.ts';
 import { randomRange, worldColorAt } from '../color.ts';
-import { state, type CellVisual } from '../state.ts';
+import type { CellVisual } from '../cell/cell.ts';
+import { state } from '../state.ts';
 import { sampleClientFlow } from '../render/flow-field.ts';
 import { viewBounds, type Bounds } from './camera.ts';
+import { pushOut } from './obstacles.ts';
 
 export interface Debris {
   x: number;
@@ -37,6 +39,9 @@ interface DebrisOptions {
   readonly life?: number;
   readonly front?: boolean;
 }
+
+const DEBRIS_COUNT = 70;
+const BUBBLE_COUNT = 20;
 
 export const debris: Debris[] = [];
 export const bubbles: Bubble[] = [];
@@ -107,8 +112,8 @@ export function resetDecor(): void {
   debris.length = 0;
   bubbles.length = 0;
   const bounds = viewBounds(240);
-  for (let i = 0; i < 160; i += 1) spawnAmbientDebris(bounds);
-  for (let i = 0; i < 50; i += 1) spawnBubble(bounds);
+  for (let i = 0; i < DEBRIS_COUNT; i += 1) spawnAmbientDebris(bounds);
+  for (let i = 0; i < BUBBLE_COUNT; i += 1) spawnBubble(bounds);
 }
 
 function outside(point: { x: number; y: number }, bounds: Bounds): boolean {
@@ -233,7 +238,7 @@ export function maintainDecor(dt: number): void {
   const bounds = viewBounds(360);
   updateDebris(dt, bounds);
   for (const bubble of bubbles) updateBubble(bubble, dt, bounds);
-  while (debris.length < 140) spawnAmbientDebris(bounds);
+  while (debris.length < DEBRIS_COUNT) spawnAmbientDebris(bounds);
   for (const cell of state.cells.values()) pushAside(cell);
   cohere(bubbles, 135, 0.011);
   cohere(
@@ -241,5 +246,7 @@ export function maintainDecor(dt: number): void {
     38,
     0.006,
   );
-  while (bubbles.length < 44) spawnBubble(bounds);
+  while (bubbles.length < BUBBLE_COUNT) spawnBubble(bounds);
+  for (const item of debris) pushOut(item, item.size);
+  for (const bubble of bubbles) pushOut(bubble, bubble.size * 0.5);
 }

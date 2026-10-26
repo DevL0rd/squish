@@ -1,15 +1,18 @@
-import { clamp, WORLD } from '../../shared/math.ts';
+import { at, clamp } from '../../shared/math.ts';
+import { FLUID_SPAN, fluidWindow, toFluid } from './fluid-window.ts';
 import { randomRange, vividColor, worldColorAt } from '../color.ts';
 import { coarsePointer } from '../dom.ts';
 import { bindTexture, blend, drawQuad, gl } from '../gl/context.ts';
 import { programs } from '../gl/programs.ts';
 import { bindTarget, divergenceTarget, dye, fluidSize, pressure, velocity, type PingPong } from '../gl/targets.ts';
-import { inView, state, type CellVisual } from '../state.ts';
-import { cellFluidColor } from '../world/interiors.ts';
+import type { CellVisual } from '../cell/cell.ts';
+import { inView, state } from '../state.ts';
 import { readFlowField } from './flow-field.ts';
 
 export const MAX_SPLATS = 28;
 const TEXEL = 1 / fluidSize;
+const WAKE_DYE = 0.09;
+const BLEED_DYE = 0.03;
 const PRESSURE_ITERATIONS = coarsePointer ? 8 : 10;
 
 const splatData = new Float32Array(MAX_SPLATS * 4);
@@ -27,7 +30,8 @@ interface SplatWrite {
 }
 
 function writeSplat(index: number, write: SplatWrite): void {
-  splatData.set([write.x / WORLD, write.y / WORLD, write.radius, write.strength], index * 4);
+  const [u, v] = toFluid(write.x, write.y);
+  splatData.set([u, v, write.radius, write.strength], index * 4);
   splatVelocity.set([write.vx, write.vy], index * 2);
   splatColor.set(write.color, index * 3);
 }
@@ -55,8 +59,8 @@ function splatBoth(count: number): void {
 export function seedFluid(): void {
   for (let pass = 0; pass < 8; pass += 1) {
     for (let i = 0; i < MAX_SPLATS; i += 1) {
-      const x = Math.random() * WORLD;
-      const y = Math.random() * WORLD;
+      const x = fluidWindow.x + Math.random() * FLUID_SPAN;
+      const y = fluidWindow.y + Math.random() * FLUID_SPAN;
       const color = worldColorAt(x, y, 0.82, 0.5);
       writeSplat(i, {
         x,
@@ -75,16 +79,36 @@ export function seedFluid(): void {
 function wakeSplat(cell: CellVisual): SplatWrite | null {
   const speed = Math.hypot(cell.vx, cell.vy);
   if (speed < 7) return null;
-  const color = vividColor(cellFluidColor(cell));
-  const intensity = 0.012 * clamp(0.3 + speed / 700, 0.4, 1) * clamp(42 / cell.radius, 0.18, 1);
+  const color = vividColor(cell.fluidColor);
+  const intensity = WAKE_DYE * clamp(0.3 + speed / 700, 0.4, 1) * clamp(42 / cell.radius, 0.18, 1);
   const offset = Math.min(cell.radius * 0.5, 24);
   return {
     x: cell.x - (cell.vx / speed) * offset,
     y: cell.y - (cell.vy / speed) * offset,
-    radius: Math.max(0.0011, Math.min(cell.radius * 0.85, 44) / WORLD),
+    radius: Math.max(0.0011, Math.min(cell.radius * 0.85, 44) / FLUID_SPAN),
     strength: 0.82,
-    vx: cell.vx * (fluidSize / WORLD) * 0.5,
-    vy: cell.vy * (fluidSize / WORLD) * 0.5,
+    vx: cell.vx * (fluidSize / FLUID_SPAN) * 0.5,
+    vy: cell.vy * (fluidSize / FLUID_SPAN) * 0.5,
+    color: [color[0] * intensity, color[1] * intensity, color[2] * intensity],
+  };
+}
+
+function bleedSplat(cell: CellVisual): SplatWrite {
+  const { membrane } = cell;
+  const index = Math.floor(Math.random() * membrane.count);
+  const x = at(membrane.x, index);
+  const y = at(membrane.y, index);
+  const length = Math.hypot(x - cell.center.x, y - cell.center.y) || 1;
+  const push = (fluidSize / FLUID_SPAN) * 18;
+  const color = vividColor(cell.fluidColor);
+  const intensity = BLEED_DYE * (cell.mass > 180 ? 2.2 : 1);
+  return {
+    x,
+    y,
+    radius: Math.max(0.0008, (cell.radius * 0.3) / FLUID_SPAN),
+    strength: 0.6,
+    vx: ((x - cell.center.x) / length) * push,
+    vy: ((y - cell.center.y) / length) * push,
     color: [color[0] * intensity, color[1] * intensity, color[2] * intensity],
   };
 }
@@ -100,6 +124,7 @@ function buildSplats(): number {
     if (count >= MAX_SPLATS) break;
     const wake = wakeSplat(cell);
     if (wake) writeSplat(count++, wake);
+    if (count < MAX_SPLATS) writeSplat(count++, bleedSplat(cell));
   }
   for (const burst of state.splats) {
     if (count >= MAX_SPLATS) break;
@@ -107,7 +132,7 @@ function buildSplats(): number {
     writeSplat(count++, {
       x: burst.x,
       y: burst.y,
-      radius: Math.max(0.0022, burst.radius / WORLD),
+      radius: Math.max(0.0022, burst.radius / FLUID_SPAN),
       strength: burst.strength,
       vx: 0,
       vy: 0,

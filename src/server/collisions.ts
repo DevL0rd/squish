@@ -4,7 +4,7 @@ import { absorbInto } from './actions.ts';
 import { MERGE_DELAY } from './config.ts';
 import { markPlayerDead, playerColor } from './players.ts';
 import type { Member } from './types.ts';
-import { allMembers, world } from './world.ts';
+import { allMembers, emit, world } from './world.ts';
 
 interface Contact {
   readonly a: Member;
@@ -93,10 +93,11 @@ function owns(member: Member): boolean {
 function fuse(a: Member, b: Member): void {
   const survivor = a.cell.mass >= b.cell.mass ? a : b;
   const absorbed = survivor === a ? b : a;
+  survivor.cell.digesting += absorbed.cell.digesting;
   absorbInto(survivor.cell, absorbed.cell);
   survivor.cell.mergeAt = Math.max(survivor.cell.mergeAt, world.now + 900);
   absorbed.player.cells.splice(absorbed.player.cells.indexOf(absorbed.cell), 1);
-  world.events.push({
+  emit({
     kind: EventKind.Merge,
     cellId: absorbed.cell.id,
     predatorId: survivor.cell.id,

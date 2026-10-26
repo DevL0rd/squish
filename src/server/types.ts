@@ -1,3 +1,4 @@
+import type { BotMind } from './bots/mind.ts';
 import type { WebSocket } from 'ws';
 import type { Rgb } from '../shared/math.ts';
 
@@ -13,6 +14,13 @@ export interface Cell extends Point {
   mass: number;
   radius: number;
   mergeAt: number;
+  boostX: number;
+  boostY: number;
+  parasites: number[];
+  digesting: number;
+  pigment: Rgb;
+  gut: number;
+  wounds: number;
 }
 
 export interface Player {
@@ -20,6 +28,8 @@ export interface Player {
   readonly name: string;
   readonly hue: number;
   readonly bot: boolean;
+  readonly admin: boolean;
+  readonly mind: BotMind | null;
   readonly ws: WebSocket | null;
   cells: Cell[];
   readonly target: Point;
@@ -29,11 +39,21 @@ export interface Player {
   lastSplit: number;
   lastEject: number;
   lastKiller: string | null;
+  effects: Effect[];
+  boost: number;
+  level: number;
+  defense: number;
   readonly wanderPhase: number;
+}
+
+interface Effect {
+  readonly type: number;
+  readonly until: number;
 }
 
 export interface Food extends Point {
   readonly id: number;
+  readonly variety: number;
   vx: number;
   vy: number;
   readonly mass: number;
@@ -54,6 +74,14 @@ export interface Creature extends Point {
   phase: number;
   energy: number;
   color: Rgb;
+  state: number;
+  stateUntil: number;
+  heading: number;
+  divideAt: number;
+  hostId: number;
+  latchAngle: number;
+  baseRadius: number;
+  feeds: number;
 }
 
 export interface Client {

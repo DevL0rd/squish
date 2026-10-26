@@ -15,7 +15,13 @@
 
     <header class="masthead">
       <div class="wordmark"><span class="pulse"></span><span>Squish</span><span class="serial">07</span></div>
-      <div class="masthead-meta"><span>Dark field</span><span class="hair"></span><span id="temp">37.2 °C</span></div>
+      <div class="masthead-meta">
+        <span class="meta-text">Dark field</span><span class="hair meta-text"></span
+        ><span class="meta-text" id="temp">37.2 °C</span>
+        <button type="button" class="masthead-link guide-toggle" id="guideOpen">Field guide</button>
+        <button type="button" class="masthead-link" id="settingsOpen">Settings</button>
+        <button type="button" class="masthead-link" id="adminOpen" hidden>Admin</button>
+      </div>
     </header>
 
     <main id="hud" class="hud" hidden>
@@ -23,25 +29,83 @@
         <div class="label">Specimen</div>
         <div class="specimen-name" id="specimenName">Squish 07</div>
         <div class="specimen-meta"><span class="live-dot"></span><span id="occupants">12 organisms</span></div>
+        <div class="pigment">
+          <span class="pigment-dot" id="pigmentDot"></span><span id="pigmentLabel">neutral cytoplasm</span>
+        </div>
       </section>
+
+      <div class="effects" id="effects" aria-live="polite"></div>
+
+      <div class="event-banner" id="eventBanner" aria-live="polite" hidden></div>
+
+      <aside class="admin" id="admin" aria-label="Admin controls" hidden></aside>
 
       <section class="board">
         <div class="board-head"><span>Population</span><span>µg</span></div>
         <ol id="ranks"></ol>
       </section>
 
+      <section class="meals" id="mealsPanel">
+        <div class="board-head"><span>Recent meals</span><span>µg</span></div>
+        <ol id="meals">
+          <li class="meals-empty">nothing digested yet</li>
+        </ol>
+      </section>
+
       <section class="biomass">
         <div class="label">Biomass</div>
         <div class="mass-line"><span id="mass">000.0</span><span class="unit">µg</span></div>
         <div class="biomass-meta"><span id="bodyCount">1 body</span><span id="rank">unranked</span></div>
+        <div class="tier">
+          <span class="tier-level" id="levelLabel">Lv 1</span><span id="attackLabel">Pseudopod lash</span
+          ><span class="tier-armor" id="defenseLabel" title="Eat tough creatures for defense">shield 0%</span>
+        </div>
+        <div class="boost" id="boostMeter" title="Eat small creatures to charge. Shift to boost.">
+          <span class="boost-pip"><i></i></span><span class="boost-pip"><i></i></span
+          ><span class="boost-label" id="boostLabel">boost</span>
+        </div>
+        <div class="digest">
+          <div class="digest-head"><span>Digesting</span><span id="digestLabel">speed 100%</span></div>
+          <div class="digest-bar"><span id="digestFill"></span></div>
+        </div>
       </section>
 
-      <div class="control-hint"><span>drag to drift</span><span>space to split</span><span>w to spit</span></div>
+      <div class="control-hint">
+        <span>drag to drift</span><span>space to split</span><span>w to attack</span><span>shift to boost</span>
+      </div>
 
       <div class="touch-actions" id="touchActions">
         <button type="button" id="splitBtn" aria-label="Split">Split</button>
         <button type="button" id="ejectBtn" aria-label="Spit mass">Spit</button>
+        <button type="button" id="boostBtn" aria-label="Boost">Boost</button>
       </div>
+
+      <button type="button" id="settingsBtn" class="sound gear" aria-label="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.2" />
+          <path
+            d="M12 3.5v2.6M12 17.9v2.6M3.5 12h2.6M17.9 12h2.6M6 6l1.8 1.8M16.2 16.2 18 18M6 18l1.8-1.8M16.2 7.8 18 6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+
+      <button type="button" id="musicBtn" class="sound music" aria-label="Stop music" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M9.5 17.2V6.4l9-1.9v10.8"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linejoin="round"
+          />
+          <circle cx="7.4" cy="17.2" r="2.1" fill="none" stroke="currentColor" stroke-width="1.2" />
+          <circle cx="16.4" cy="15.3" r="2.1" fill="none" stroke="currentColor" stroke-width="1.2" />
+        </svg>
+      </button>
 
       <button type="button" id="soundBtn" class="sound" aria-label="Mute sound" aria-pressed="false">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -83,10 +147,84 @@
         <div class="intro-foot">
           <span id="online">12 organisms present</span>
           <span class="foot-rule"></span>
-          <span class="foot-desktop">drag to move · space split · w spit</span>
+          <span class="foot-desktop">drag to move · space split · w attack</span>
           <span class="foot-touch">left thumb steers · right buttons split</span>
         </div>
       </div>
+      <aside class="guide" id="guide" aria-label="Field guide">
+        <div class="guide-head">
+          <span class="label">Field guide</span>
+          <button type="button" class="guide-close" id="guideClose">close</button>
+        </div>
+        <ol class="guide-list">
+          <li>
+            <h3>Feed</h3>
+            <p>
+              Drift into anything smaller than you. Your membrane wraps it and it dissolves into your cytoplasm. You
+              must be about a third larger than what you swallow.
+            </p>
+          </li>
+          <li>
+            <h3>Colour</h3>
+            <p>
+              Every region of the culture has its own hue. Food close to your colour gives up to three times the mass.
+              Eating other hues dilutes you.
+            </p>
+          </li>
+          <li>
+            <h3>Digest</h3>
+            <p>Undigested food weighs on you: a full cell crawls. Bigger cells digest faster, so pace your meals.</p>
+          </li>
+          <li>
+            <h3>Levels and attacks</h3>
+            <p>
+              Grow to level up: a needle injects new DNA and upgrades your attack from spit to trichocyst volley,
+              toxicyst dart, osmotic pulse and lysosome bomb. Every attack costs mass, splits rivals and wounds bosses.
+              Eat diatoms, rotifers, Stentor and tardigrades for a shield.
+            </p>
+          </li>
+          <li>
+            <h3>Boost</h3>
+            <p>
+              Eating small creatures charges up to two boosts. Shift or the Boost button blasts dye behind you and
+              launches you forward.
+            </p>
+          </li>
+          <li>
+            <h3>Divide and fuse</h3>
+            <p>
+              Split to launch half of yourself at prey. Your pieces can rejoin after ten seconds. Press into a smaller
+              rival and your membranes fuse.
+            </p>
+          </li>
+          <li>
+            <h3>Dangers</h3>
+            <ul class="bestiary">
+              <li class="beast">
+                <span class="mark danger"></span><b>Spiked virus.</b> Bursts you into pieces if you are bigger than it.
+              </li>
+              <li class="beast">
+                <span class="mark danger"></span><b>Bdellovibrio.</b> A red hunter that burrows in and eats you from
+                inside.
+              </li>
+              <li class="beast">
+                <span class="mark wild"></span><b>Bacteriophage.</b> Lands, injects its DNA and changes you: faster,
+                growing, sluggish or leaking.
+              </li>
+              <li class="beast">
+                <span class="mark solid"></span><b>Sand, fibres, air bubbles.</b> Solid. Flow around them.
+              </li>
+            </ul>
+          </li>
+          <li>
+            <h3>Controls</h3>
+            <p class="foot-desktop">
+              Pointer steers · Space splits · W attacks · Shift boosts · M mutes · N music · scroll zooms.
+            </p>
+            <p class="foot-touch">Left thumb steers · buttons split, attack and boost · pinch zooms.</p>
+          </li>
+        </ol>
+      </aside>
       <div class="edge-note">SmartEverything Bio · continuous observation</div>
     </section>
 
@@ -105,6 +243,20 @@
       <div class="joystick-ring"></div>
       <div class="joystick-knob" id="joystickKnob"></div>
     </div>
+
+    <dialog id="settings" class="settings" aria-labelledby="settingsTitle">
+      <div class="settings-inner">
+        <header class="settings-head">
+          <h2 id="settingsTitle">Settings</h2>
+          <button type="button" class="guide-close" id="settingsClose">close</button>
+        </header>
+        <div class="settings-body" id="settingsBody"></div>
+        <footer class="settings-foot">
+          <span class="label" id="settingsNote">Saved on this device</span>
+          <button type="button" class="masthead-link" id="settingsReset">Reset defaults</button>
+        </footer>
+      </div>
+    </dialog>
 
     <div id="status" class="status" role="status" aria-live="polite"></div>
     <div id="boot" class="boot"><span>preparing specimen</span><span class="boot-line"></span></div>

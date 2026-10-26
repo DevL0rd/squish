@@ -1,10 +1,14 @@
 import { ByteReader } from '../shared/bytes.ts';
 import { decodeCreatures, decodeFood, decodeSnapshot } from '../shared/codec.ts';
+import { decodeHazards } from '../shared/hazard-codec.ts';
 import {
   Packet,
   type ClientMessage,
   type CreaturePacket,
   type FoodPacket,
+  type HazardPacket,
+  type ObstacleDrift,
+  type ObstacleShape,
   type RosterEntry,
   type ServerMessage,
   type Snapshot,
@@ -20,7 +24,13 @@ export interface NetHandlers {
   readonly onCreature: (packet: CreaturePacket) => void;
   readonly onDead: (by: string) => void;
   readonly onRespawned: () => void;
+  readonly onBoost: (charge: number) => void;
+  readonly onProgress: (level: number, defense: number) => void;
   readonly onFull: () => void;
+  readonly onObstacles: (items: readonly ObstacleShape[]) => void;
+  readonly onDrift: (items: readonly ObstacleDrift[]) => void;
+  readonly onHazards: (packet: HazardPacket) => void;
+  readonly onAnnounce: (text: string, danger: boolean) => void;
 }
 
 interface Identity {
@@ -88,13 +98,21 @@ export class Net {
   }
 
   private dispatch(message: ServerMessage): void {
+    if (message.t === 'welcome') {
+      this.everJoined = true;
+      this.pendingJoin = false;
+      this.identity = { name: message.name, hue: message.hue };
+      this.handlers.onWelcome(message);
+    } else if (message.t === 'full') {
+      this.pendingJoin = false;
+      this.handlers.onFull();
+    } else {
+      this.forward(message);
+    }
+  }
+
+  private forward(message: Exclude<ServerMessage, { t: 'welcome' | 'full' }>): void {
     switch (message.t) {
-      case 'welcome':
-        this.everJoined = true;
-        this.pendingJoin = false;
-        this.identity = { name: message.name, hue: message.hue };
-        this.handlers.onWelcome(message);
-        return;
       case 'roster':
         this.handlers.onRoster(message.players);
         return;
@@ -104,9 +122,20 @@ export class Net {
       case 'respawned':
         this.handlers.onRespawned();
         return;
-      case 'full':
-        this.pendingJoin = false;
-        this.handlers.onFull();
+      case 'boost':
+        this.handlers.onBoost(message.charge);
+        return;
+      case 'progress':
+        this.handlers.onProgress(message.level, message.defense);
+        return;
+      case 'obstacles':
+        this.handlers.onObstacles(message.items);
+        return;
+      case 'drift':
+        this.handlers.onDrift(message.items);
+        return;
+      case 'announce':
+        this.handlers.onAnnounce(message.text, message.danger);
         return;
     }
   }
@@ -117,6 +146,7 @@ export class Net {
     if (type === Packet.Snapshot) this.handlers.onSnapshot(decodeSnapshot(reader));
     else if (type === Packet.Food) this.handlers.onFood(decodeFood(reader));
     else if (type === Packet.Creature) this.handlers.onCreature(decodeCreatures(reader));
+    else if (type === Packet.Hazard) this.handlers.onHazards(decodeHazards(reader));
   }
 
   private send(message: ClientMessage): void {
@@ -143,6 +173,14 @@ export class Net {
 
   eject(): void {
     this.send({ t: 'eject' });
+  }
+
+  admin(action: number, arg = 0): void {
+    this.send({ t: 'admin', action, arg });
+  }
+
+  boost(): void {
+    this.send({ t: 'boost' });
   }
 
   respawn(): void {

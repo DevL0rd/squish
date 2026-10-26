@@ -1,4 +1,5 @@
-import { at, sampleGrid, WORLD } from '../../shared/math.ts';
+import { at, sampleGrid } from '../../shared/math.ts';
+import { FLUID_SPAN, toFluid } from './fluid-window.ts';
 import { drawQuad, gl, bindTexture } from '../gl/context.ts';
 import { programs } from '../gl/programs.ts';
 import { bindTarget, FIELD_SIZE, fieldTarget, fluidSize, velocity } from '../gl/targets.ts';
@@ -20,7 +21,7 @@ export function readFlowField(dt: number): void {
   programs.field.use().int('uVelocity', 0);
   drawQuad();
   gl.readPixels(0, 0, FIELD_SIZE, FIELD_SIZE, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-  const scale = WORLD / fluidSize / 0.004;
+  const scale = FLUID_SPAN / fluidSize / 0.004;
   for (let i = 0; i < FIELD_SIZE * FIELD_SIZE; i += 1) {
     flowX[i] = (at(pixels, i * 4) / 255 - 0.5) * scale;
     flowY[i] = (at(pixels, i * 4 + 1) / 255 - 0.5) * scale;
@@ -30,7 +31,9 @@ export function readFlowField(dt: number): void {
 
 export function sampleClientFlow(x: number, y: number): [number, number] | null {
   if (!valid) return null;
-  const gx = (x / WORLD) * (FIELD_SIZE - 1);
-  const gy = (y / WORLD) * (FIELD_SIZE - 1);
+  const [u, v] = toFluid(x, y);
+  if (u < 0 || v < 0 || u > 1 || v > 1) return null;
+  const gx = u * (FIELD_SIZE - 1);
+  const gy = v * (FIELD_SIZE - 1);
   return [sampleGrid(flowX, FIELD_SIZE, gx, gy), sampleGrid(flowY, FIELD_SIZE, gx, gy)];
 }

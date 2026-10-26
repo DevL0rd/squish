@@ -2,16 +2,15 @@ import { blend, bindTexture, gl } from '../gl/context.ts';
 import { InstanceBatch } from '../gl/instances.ts';
 import type { ShaderProgram } from '../gl/program.ts';
 import { programs } from '../gl/programs.ts';
-import { screenTargets } from '../gl/screen.ts';
+import { backdrop } from '../gl/screen.ts';
 import { vividColor } from '../color.ts';
-import { inView, state } from '../state.ts';
+import { growth, inView, state, type CreatureVisual } from '../state.ts';
 import { bubbles, debris } from '../world/decor.ts';
-import { cellFluidColor } from '../world/interiors.ts';
 import { setScreen, setView } from './view.ts';
 
 const shadows = new InstanceBatch(2, 1024);
 const halos = new InstanceBatch(2, 1024);
-const food = new InstanceBatch(2, 2048);
+const food = new InstanceBatch(3, 2048);
 const bubbleBatch = new InstanceBatch(1, 128);
 const debrisBatch = new InstanceBatch(2, 512);
 const creatures = new InstanceBatch(3, 128);
@@ -38,10 +37,14 @@ export function drawHalos(): void {
   halos.begin();
   for (const cell of state.cells.values()) {
     if (!inView(cell, 0.75, cell.radius * 2)) continue;
-    const color = vividColor(cellFluidColor(cell));
+    const color = vividColor(cell.fluidColor);
     if (!halos.add([cell.x, cell.y, cell.radius * 2, 0.34, color[0], color[1], color[2], 0.3])) break;
   }
   flush(halos, programs.halo, true);
+}
+
+function stateTime(creature: CreatureVisual): number {
+  return (performance.now() - creature.stateSince) / 1000;
 }
 
 export function drawCreatures(time: number): void {
@@ -49,7 +52,24 @@ export function drawCreatures(time: number): void {
   for (const creature of state.creatures.values()) {
     if (!inView(creature, 0.62, 60)) continue;
     const { x, y, radius, kind, color, angle, phase } = creature;
-    if (!creatures.add([x, y, radius * 2.1, kind, color[0], color[1], color[2], angle, phase + time, 0, 0, 0])) break;
+    if (
+      !creatures.add([
+        x,
+        y,
+        radius * 2.4 * growth(creature),
+        kind,
+        color[0],
+        color[1],
+        color[2],
+        angle,
+        phase + time,
+        1,
+        creature.state,
+        stateTime(creature),
+      ])
+    ) {
+      break;
+    }
   }
   flush(creatures, programs.creature, false);
 }
@@ -59,7 +79,24 @@ export function drawFood(time: number): void {
   for (const item of state.food.values()) {
     if (item.alpha < 0.015 || !inView(item, 0.65, 80)) continue;
     const { color } = item;
-    if (!food.add([item.x, item.y, item.radius * 2.1, item.phase, color[0], color[1], color[2], 1])) break;
+    if (
+      !food.add([
+        item.x,
+        item.y,
+        item.radius * 2.1 * growth(item),
+        item.phase,
+        color[0],
+        color[1],
+        color[2],
+        1,
+        item.variety,
+        0,
+        0,
+        0,
+      ])
+    ) {
+      break;
+    }
   }
   programs.food.use().float('uTime', time);
   flush(food, programs.food, false);
@@ -83,7 +120,7 @@ export function drawBubbles(front: boolean): void {
     if (bubble.front !== front || !inView(bubble, 0.7, 80)) continue;
     if (!bubbleBatch.add([bubble.x, bubble.y, bubble.size, bubble.seed])) break;
   }
-  bindTexture(0, screenTargets().base.texture);
+  bindTexture(0, backdrop());
   setScreen(programs.bubble.use().int('uBackground', 0));
   flush(bubbleBatch, programs.bubble, false);
 }

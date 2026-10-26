@@ -1,6 +1,10 @@
 import { clamp, WORLD } from '../shared/math.ts';
 import { MAX_NAME } from '../shared/protocol.ts';
-import { ejectMass, splitPlayer } from './actions.ts';
+import { splitPlayer } from './actions.ts';
+import { boostPlayer, tellBoost } from './boost.ts';
+import { attack } from './combat/weapons.ts';
+import { tellProgress } from './progress.ts';
+import { adminCatalog, adminCommand, isAdmin } from './admin.ts';
 import { foodPacket, sendPacket, snapshotPacket } from './broadcast.ts';
 import { SLOTS } from './config.ts';
 import { broadcastRoster, createPlayer, ensurePopulation, humanCount, randomName, spawnPlayer } from './players.ts';
@@ -42,15 +46,27 @@ function join(client: Client, message: Message): void {
     return;
   }
   const hue = message['hue'];
+  const name = cleanName(message['name']);
   const player = createPlayer({
     ws: client.ws,
-    name: cleanName(message['name']),
+    name,
+    admin: isAdmin(name),
     hue: typeof hue === 'number' && Number.isFinite(hue) ? hue : Math.random() * 360,
   });
   client.player = player;
   ensurePopulation();
-  sendJson(client.ws, { t: 'welcome', id: player.id, name: player.name, hue: player.hue, world: WORLD, slots: SLOTS });
+  sendJson(client.ws, {
+    t: 'welcome',
+    id: player.id,
+    name: player.name,
+    hue: player.hue,
+    world: WORLD,
+    slots: SLOTS,
+    admin: player.admin ? adminCatalog() : null,
+  });
   broadcastRoster();
+  tellBoost(player);
+  tellProgress(player);
   sendPacket(client, snapshotPacket(false));
   sendPacket(client, foodPacket(client));
 }
@@ -58,6 +74,8 @@ function join(client: Client, message: Message): void {
 function respawn(client: Client, player: Player): void {
   if (player.cells.length) return;
   spawnPlayer(player, 55);
+  tellBoost(player);
+  tellProgress(player);
   player.lastKiller = null;
   sendJson(client.ws, { t: 'respawned' });
 }
@@ -81,7 +99,13 @@ function playerCommand(client: Client, player: Player, message: Message): void {
       splitPlayer(player);
       return;
     case 'eject':
-      ejectMass(player);
+      attack(player);
+      return;
+    case 'boost':
+      boostPlayer(player);
+      return;
+    case 'admin':
+      adminCommand(player, message['action'], message['arg']);
       return;
     default:
       return;

@@ -12,6 +12,7 @@ const CONTENT_TYPES: Readonly<Record<string, string>> = {
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.ogg': 'audio/ogg',
 };
 
 function sendHealth(response: ServerResponse): void {
@@ -28,16 +29,31 @@ function sendHealth(response: ServerResponse): void {
   );
 }
 
-async function sendFile(response: ServerResponse, target: string): Promise<void> {
+const CACHED = new Set(['.woff2', '.ogg']);
+
+function byteRange(header: string | undefined, size: number): { start: number; end: number } | null {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header ?? '');
+  if (!match) return null;
+  const [, from = '', to = ''] = match;
+  const start = from === '' ? Math.max(0, size - Number(to)) : Number(from);
+  const end = from === '' || to === '' ? size - 1 : Math.min(Number(to), size - 1);
+  return start <= end ? { start, end } : null;
+}
+
+async function sendFile(request: IncomingMessage, response: ServerResponse, target: string): Promise<void> {
   try {
     const data = await readFile(target);
     const extension = path.extname(target);
-    response.writeHead(200, {
+    const range = byteRange(request.headers.range, data.length);
+    const headers: Record<string, string> = {
       'Content-Type': CONTENT_TYPES[extension] ?? 'application/octet-stream',
-      'Cache-Control': extension === '.woff2' ? 'public, max-age=86400' : 'no-store',
+      'Cache-Control': CACHED.has(extension) ? 'public, max-age=86400' : 'no-store',
+      'Accept-Ranges': 'bytes',
       'X-Content-Type-Options': 'nosniff',
-    });
-    response.end(data);
+    };
+    if (range) headers['Content-Range'] = `bytes ${String(range.start)}-${String(range.end)}/${String(data.length)}`;
+    response.writeHead(range ? 206 : 200, headers);
+    response.end(range ? data.subarray(range.start, range.end + 1) : data);
   } catch {
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     response.end('not found');
@@ -58,6 +74,6 @@ export function staticHandler(root: string): (request: IncomingMessage, response
       response.end('forbidden');
       return;
     }
-    void sendFile(response, target);
+    void sendFile(request, response, target);
   };
 }

@@ -27,4 +27,22 @@ float fbm(vec2 p) {
   }
   return v;
 }
+
+vec2 hash22(vec2 p) {
+  return vec2(hash21(p), hash21(p + 17.31));
+}
+
+float cellular(vec2 p) {
+  vec2 cell = floor(p);
+  vec2 local = fract(p);
+  float best = 8.0;
+  for (int y = -1; y <= 1; y++) {
+    for (int x = -1; x <= 1; x++) {
+      vec2 offset = vec2(float(x), float(y));
+      vec2 feature = offset + 0.2 + 0.6 * hash22(cell + offset) - local;
+      best = min(best, dot(feature, feature));
+    }
+  }
+  return sqrt(best);
+}
 `;

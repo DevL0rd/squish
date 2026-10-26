@@ -3,3 +3,7 @@
 @import url('./screens.css');
 @import url('./overlays.css');
 @import url('./responsive.css');
+@import url('./guide.css');
+@import url('./settings.css');
+@import url('./panels.css');
+@import url('./admin.css');

@@ -1,48 +1,76 @@
 import { radiusFor } from '../shared/math.ts';
-import { EventKind } from '../shared/protocol.ts';
+import { EventKind, FoodVariety } from '../shared/protocol.ts';
 import { MAX_CELLS, MERGE_DELAY } from './config.ts';
 import { addFood } from './food.ts';
+import { blendPigment } from './pigment.ts';
 import { direction } from './physics.ts';
 import { makeCell, playerColor } from './players.ts';
 import type { Cell, Player, Point } from './types.ts';
-import { world } from './world.ts';
+import { emit, world } from './world.ts';
 
 const SPLIT_COOLDOWN = 260;
 const SPLIT_MIN_MASS = 44;
+const LAUNCH_SPEED = 980;
 const EJECT_COOLDOWN = 240;
 const EJECT_MIN_MASS = 50;
 const EJECT_MASS = 17;
+const CHIP_MIN_MASS = 14;
+const CHIP_SPEED = 620;
+const EJECT_SPEED = 1500;
 
-function aimFrom(player: Player, cell: Cell): Point {
+export function aimFrom(player: Player, cell: Cell): Point {
   const dx = player.target.x - cell.x;
   const dy = player.target.y - cell.y;
   if (Math.hypot(dx, dy) < 8) return direction(Math.cos(player.wanderPhase), Math.sin(player.wanderPhase));
   return direction(dx, dy);
 }
 
+interface Launch {
+  readonly aim: Point;
+  readonly reach: number;
+  readonly speed: number;
+  readonly mass: number;
+}
+
+function launchPiece(player: Player, cell: Cell, launch: Launch): void {
+  const { aim, speed } = launch;
+  const child = makeCell({
+    x: cell.x + aim.x * cell.radius * launch.reach,
+    y: cell.y + aim.y * cell.radius * launch.reach,
+    mass: launch.mass,
+    vx: cell.vx + aim.x * speed,
+    vy: cell.vy + aim.y * speed,
+    boostX: aim.x * speed,
+    boostY: aim.y * speed,
+    mergeAt: world.now + MERGE_DELAY,
+    digesting: cell.digesting,
+    pigment: cell.pigment,
+  });
+  player.cells.push(child);
+  const color = playerColor(player, 0.86, 0.62);
+  emit({ kind: EventKind.Split, cellId: cell.id, predatorId: child.id, x: child.x, y: child.y, color });
+}
+
+export function launchCell(cell: Cell, aim: Point, speed: number): void {
+  cell.boostX = aim.x * speed;
+  cell.boostY = aim.y * speed;
+  cell.vx += cell.boostX;
+  cell.vy += cell.boostY;
+}
+
+function escapeGut(player: Player, cell: Cell): void {
+  cell.gut = -1;
+  launchCell(cell, aimFrom(player, cell), LAUNCH_SPEED);
+}
+
 function splitCell(player: Player, cell: Cell): void {
   const aim = aimFrom(player, cell);
   const half = cell.mass * 0.5;
   cell.mass = half;
+  cell.digesting *= 0.5;
   cell.radius = radiusFor(half);
   cell.mergeAt = world.now + MERGE_DELAY;
-  const child = makeCell({
-    x: cell.x + aim.x * cell.radius * 0.7,
-    y: cell.y + aim.y * cell.radius * 0.7,
-    mass: half,
-    vx: cell.vx + aim.x * 560,
-    vy: cell.vy + aim.y * 560,
-    mergeAt: world.now + MERGE_DELAY,
-  });
-  player.cells.push(child);
-  world.events.push({
-    kind: EventKind.Split,
-    cellId: cell.id,
-    predatorId: child.id,
-    x: child.x,
-    y: child.y,
-    color: playerColor(player, 0.86, 0.62),
-  });
+  launchPiece(player, cell, { aim, reach: 0.7, speed: LAUNCH_SPEED, mass: half });
 }
 
 export function splitPlayer(player: Player): void {
@@ -50,6 +78,10 @@ export function splitPlayer(player: Player): void {
   if (player.cells.length >= MAX_CELLS) return;
   player.lastSplit = world.now;
   for (const cell of [...player.cells]) {
+    if (cell.gut >= 0) {
+      escapeGut(player, cell);
+      continue;
+    }
     if (player.cells.length >= MAX_CELLS) break;
     if (cell.mass >= SPLIT_MIN_MASS) splitCell(player, cell);
   }
@@ -61,9 +93,20 @@ function ejectFrom(player: Player, cell: Cell): void {
   const aim = direction(player.target.x - cell.x, player.target.y - cell.y);
   const x = cell.x + aim.x * (cell.radius + 8);
   const y = cell.y + aim.y * (cell.radius + 8);
-  const color = playerColor(player, 0.92, 0.66);
-  addFood({ x, y, vx: aim.x * 620, vy: aim.y * 620, mass: 14, radius: 15, color, ejecta: true, owner: player.id });
-  world.events.push({ kind: EventKind.Spit, cellId: cell.id, predatorId: 0, x, y, color });
+  const color = cell.pigment;
+  addFood({
+    x,
+    y,
+    vx: cell.vx + aim.x * EJECT_SPEED,
+    vy: cell.vy + aim.y * EJECT_SPEED,
+    mass: 15 ** 2 / 27.04,
+    radius: 15,
+    color,
+    ejecta: true,
+    owner: player.id,
+    variety: FoodVariety.Vesicle,
+  });
+  emit({ kind: EventKind.Spit, cellId: cell.id, predatorId: 0, x, y, color });
 }
 
 export function ejectMass(player: Player): void {
@@ -76,6 +119,7 @@ export function ejectMass(player: Player): void {
 
 export function absorbInto(survivor: Cell, absorbed: Cell): void {
   const total = survivor.mass + absorbed.mass;
+  survivor.pigment = blendPigment(survivor.pigment, absorbed.pigment, absorbed.mass / total);
   survivor.x = (survivor.x * survivor.mass + absorbed.x * absorbed.mass) / total;
   survivor.y = (survivor.y * survivor.mass + absorbed.y * absorbed.mass) / total;
   survivor.vx = (survivor.vx * survivor.mass + absorbed.vx * absorbed.mass) / total;
@@ -97,8 +141,9 @@ export function rejoinCells(player: Player): void {
     for (let j = i + 1; j < cells.length; j += 1) {
       const b = cells[j];
       if (!b || !canRejoin(a, b)) continue;
+      a.digesting += b.digesting;
       absorbInto(a, b);
-      world.events.push({
+      emit({
         kind: EventKind.Merge,
         cellId: b.id,
         predatorId: a.id,
@@ -110,4 +155,32 @@ export function rejoinCells(player: Player): void {
       j -= 1;
     }
   }
+}
+
+const BURST_SPEED = 520;
+const BURST_PIECES = 7;
+
+export function chipCell(player: Player, cell: Cell, aim: Point, fraction: number): void {
+  const mass = cell.mass * fraction;
+  if (player.cells.length >= MAX_CELLS || mass < CHIP_MIN_MASS) return;
+  cell.mass -= mass;
+  cell.radius = radiusFor(cell.mass);
+  launchPiece(player, cell, { aim, reach: 0.9, speed: CHIP_SPEED, mass });
+}
+
+export function burstCell(player: Player, cell: Cell): boolean {
+  const pieces = Math.min(BURST_PIECES, MAX_CELLS - player.cells.length + 1);
+  if (pieces < 2) return false;
+  const share = cell.mass / pieces;
+  cell.mass = share;
+  cell.radius = radiusFor(share);
+  cell.digesting /= pieces;
+  cell.mergeAt = world.now + MERGE_DELAY;
+  const spin = Math.random() * Math.PI * 2;
+  for (let i = 1; i < pieces; i += 1) {
+    const angle = spin + (i / pieces) * Math.PI * 2;
+    const aim = { x: Math.cos(angle), y: Math.sin(angle) };
+    launchPiece(player, cell, { aim, reach: 1, speed: BURST_SPEED, mass: share });
+  }
+  return true;
 }

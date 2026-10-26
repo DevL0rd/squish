@@ -1,7 +1,10 @@
+import { createMind } from './bots/mind.ts';
 import { clamp, hslToRgb, radiusFor, type Rgb } from '../shared/math.ts';
 import { BOT_NAMES, SLOTS } from './config.ts';
 import type { Cell, Player, Point } from './types.ts';
 import { sendJson } from './transport.ts';
+import { blockedAt } from './obstacles.ts';
+import { NEUTRAL_PIGMENT } from './pigment.ts';
 import { nextId, randomWorld, toBytes, world, worldCenter } from './world.ts';
 
 const DEFAULT_HUE = 198;
@@ -14,6 +17,10 @@ interface CellOptions {
   readonly vx?: number;
   readonly vy?: number;
   readonly mergeAt?: number;
+  readonly boostX?: number;
+  readonly boostY?: number;
+  readonly digesting?: number;
+  readonly pigment?: Rgb;
 }
 
 export function makeCell(options: CellOptions): Cell {
@@ -26,6 +33,13 @@ export function makeCell(options: CellOptions): Cell {
     mass: options.mass,
     radius: radiusFor(options.mass),
     mergeAt: options.mergeAt ?? 0,
+    boostX: options.boostX ?? 0,
+    boostY: options.boostY ?? 0,
+    parasites: [],
+    digesting: options.digesting ?? 0,
+    pigment: options.pigment ?? NEUTRAL_PIGMENT,
+    gut: -1,
+    wounds: 0,
   };
 }
 
@@ -50,7 +64,7 @@ function spawnPoint(minDistance: number): Point {
   let bestScore = -1;
   for (let attempt = 0; attempt < SPAWN_ATTEMPTS; attempt += 1) {
     const candidate = { x: randomWorld(260), y: randomWorld(260) };
-    const score = clearance(candidate.x, candidate.y);
+    const score = blockedAt(candidate, 120) ? -1 : clearance(candidate.x, candidate.y);
     if (score <= bestScore) continue;
     bestScore = score;
     best = candidate;
@@ -67,12 +81,16 @@ export function spawnPlayer(player: Player, mass = 55): void {
   player.alive = true;
   player.graceUntil = world.now + (player.bot ? 2600 : 9000);
   player.respawnAt = 0;
+  player.boost = 0;
+  player.level = 1;
+  player.defense = 0;
 }
 
 interface PlayerOptions {
   readonly name: string;
   readonly hue: number;
   readonly bot?: boolean;
+  readonly admin?: boolean;
   readonly ws?: Player['ws'];
 }
 
@@ -82,6 +100,8 @@ export function createPlayer(options: PlayerOptions): Player {
     name: options.name,
     hue: options.hue === -1 ? -1 : clamp(Math.round(options.hue), 0, 359),
     bot: options.bot ?? false,
+    admin: options.admin ?? false,
+    mind: options.bot ? createMind() : null,
     ws: options.ws ?? null,
     cells: [],
     target: worldCenter(),
@@ -91,6 +111,10 @@ export function createPlayer(options: PlayerOptions): Player {
     lastSplit: 0,
     lastEject: 0,
     lastKiller: null,
+    effects: [],
+    boost: 0,
+    level: 1,
+    defense: 0,
     wanderPhase: Math.random() * Math.PI * 2,
   };
   world.players.set(player.id, player);

@@ -1,7 +1,11 @@
+import { settings } from '../ui/settings.ts';
 import { clamp, lerp, WORLD } from '../../shared/math.ts';
 import { canvas } from '../dom.ts';
 import { screen } from '../gl/screen.ts';
-import { ownCells, playerCenter, state, WORLD_CENTER, type CellVisual } from '../state.ts';
+import type { CellVisual } from '../cell/cell.ts';
+import { ownCells, playerCenter, state, WORLD_CENTER } from '../state.ts';
+
+const TREMOR = { joined: 0.32, watching: 0.75 };
 
 export interface Bounds {
   readonly left: number;
@@ -91,7 +95,7 @@ export function updateCamera(dt: number): void {
   camera.x = camera.width >= WORLD ? WORLD_CENTER : clamp(camera.x, halfW, WORLD - halfW);
   camera.y = camera.height >= WORLD ? WORLD_CENTER : clamp(camera.y, halfH, WORLD - halfH);
   camera.shake *= Math.exp(-dt * 7);
-  const tremor = state.joined ? 0.32 : 0.75;
+  const tremor = settings().reducedMotion ? 0 : TREMOR[state.joined ? 'joined' : 'watching'];
   camera.ox = (Math.random() - 0.5) * camera.shake + Math.sin(state.time * 1.7) * tremor;
   camera.oy = (Math.random() - 0.5) * camera.shake + Math.cos(state.time * 1.31) * tremor;
 }

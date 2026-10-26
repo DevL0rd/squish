@@ -1,6 +1,6 @@
 .masthead {
   position: fixed;
-  z-index: 4;
+  z-index: 8;
   top: 0;
   left: 0;
   right: 0;
@@ -261,6 +261,10 @@
 
 .sound:hover {
   color: var(--bone);
+}
+
+.sound[aria-pressed='true'] {
+  opacity: 0.4;
 }
 
 .sound svg {

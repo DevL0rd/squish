@@ -7,7 +7,8 @@ out vec4 outColor;
 uniform vec2 uCamera;
 uniform vec2 uView;
 uniform float uTime;
-uniform float uWorld;
+uniform vec2 uOrigin;
+uniform float uSpan;
 uniform sampler2D uDye;
 uniform sampler2D uVelocity;
 uniform int uLightCount;
@@ -19,8 +20,9 @@ ${noise}
 
 void main() {
   vec2 world = uCamera + (vUv - 0.5) * uView;
-  vec2 p = world / uWorld;
-  vec2 flow = texture(uVelocity, p).xy * 0.0035;
+  vec2 p = (world - uOrigin) / uSpan;
+  float inside = step(0.0, p.x) * step(0.0, p.y) * step(p.x, 1.0) * step(p.y, 1.0);
+  vec2 flow = texture(uVelocity, p).xy * 0.0035 * inside;
   float t = uTime;
   float fogA = fbm(world * 0.00135 + vec2(t * 0.004, -t * 0.003) + flow);
   float fogB = fbm(world * 0.0048 + vec2(-t * 0.009, t * 0.006) - flow * 1.7);
@@ -39,12 +41,12 @@ void main() {
   float micro2 = fbm(world * 0.087 - vec2(t * 0.03, t * 0.021));
   col += vec3(0.03, 0.065, 0.055) * pow(micro, 3.0) * 0.8;
   col += vec3(0.018, 0.045, 0.038) * pow(micro2, 4.0) * 0.9;
-  vec4 dye = texture(uDye, p);
+  vec4 dye = texture(uDye, p) * inside;
   vec3 dyeCol = dye.rgb;
   float density = dot(dyeCol, vec3(0.35, 0.5, 0.3));
   vec3 transmittance = exp(-dyeCol * 0.82);
   col *= mix(vec3(1.0), transmittance, 0.75);
-  col += dyeCol * 0.12 + dyeCol * dyeCol * 0.075;
+  col += dyeCol * 0.22 + dyeCol * dyeCol * 0.12;
   col += vec3(0.02, 0.05, 0.045) * density * 0.08;
   float glow = exp(-dot(vUv - vec2(0.72, 0.58), vUv - vec2(0.72, 0.58)) * 4.5);
   col += vec3(0.008, 0.02, 0.018) * glow;

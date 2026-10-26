@@ -1,6 +1,6 @@
 export type Rgb = readonly [number, number, number];
 
-export const WORLD = 4096;
+export const WORLD = 12960;
 export const TAU = Math.PI * 2;
 
 export function at(field: ArrayLike<number>, index: number): number {
@@ -16,12 +16,12 @@ export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
-export function smoothstep(progress: number): number {
-  return progress * progress * (3 - 2 * progress);
-}
-
 export function radiusFor(mass: number): number {
   return 5.2 * Math.sqrt(Math.max(mass, 1));
+}
+
+export function digestionRate(radius: number): number {
+  return clamp(radius / radiusFor(55), 0.6, 4);
 }
 
 export function mulberry32(seed: number): () => number {
@@ -65,6 +65,12 @@ export function worldHueAt(x: number, y: number): number {
     24 * Math.sin((nx + ny) * 8.2 + 1.1) +
     16 * Math.cos((nx - ny) * 10.4);
   return ((hue % 360) + 360) % 360;
+}
+
+export function regionalHue(x: number, y: number, hue: number, weight: number): number {
+  const local = worldHueAt(x, y);
+  const delta = ((((local - hue) % 360) + 540) % 360) - 180;
+  return (((hue + delta * weight) % 360) + 360) % 360;
 }
 
 export function sampleGrid(field: Float32Array, n: number, x: number, y: number): number {

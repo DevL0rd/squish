@@ -1,6 +1,6 @@
 import type { WireEvent } from '../shared/protocol.ts';
 import { WORLD } from '../shared/math.ts';
-import type { Client, Creature, Food, Member, Player, Point } from './types.ts';
+import type { Cell, Client, Creature, Food, Member, Player, Point } from './types.ts';
 
 export const world = {
   now: Date.now(),
@@ -12,7 +12,11 @@ export const world = {
   events: [] as WireEvent[],
 };
 
-const counters = { player: 1, cell: 1, food: 1, creature: 1 };
+const counters = { player: 1, cell: 1, food: 1, creature: 1, obstacle: 1 };
+
+export function emit(event: Omit<WireEvent, 'amount' | 'bonus'> & Partial<Pick<WireEvent, 'amount' | 'bonus'>>): void {
+  world.events.push({ amount: 0, bonus: 1, ...event });
+}
 
 export function nextId(kind: keyof typeof counters): number {
   const id = counters[kind];
@@ -65,4 +69,16 @@ export function withinRange(point: Point, center: Point, limit: number): boolean
 
 export function toBytes(color: readonly [number, number, number]): [number, number, number] {
   return [Math.round(color[0] * 255), Math.round(color[1] * 255), Math.round(color[2] * 255)];
+}
+
+export function ownerOf(cell: Cell): Player | undefined {
+  for (const player of world.players.values()) if (player.cells.includes(cell)) return player;
+  return undefined;
+}
+
+export function biggestCell(player: Player | undefined): Cell | undefined {
+  return player?.cells.reduce<Cell | undefined>(
+    (best, cell) => (best && best.mass >= cell.mass ? best : cell),
+    undefined,
+  );
 }

@@ -1,9 +1,11 @@
+import { settings } from './ui/settings.ts';
 import { clamp, type Rgb } from '../shared/math.ts';
 import type { RosterEntry } from '../shared/protocol.ts';
 import { cssColor, vividColor } from './color.ts';
 import { bodyCountLabel, canvas, massLabel, occupantsLabel, onlineLabel, rankLabel, ranksList } from './dom.ts';
 import { labelContext } from './gl/screen.ts';
-import { ownCells, state, type CellVisual } from './state.ts';
+import type { CellVisual } from './cell/cell.ts';
+import { ownCells, state } from './state.ts';
 
 const UI_INTERVAL = 240;
 const COLOR_INTERVAL = 1800;
@@ -31,9 +33,7 @@ function refreshRosterColors(now: number): void {
   lastColorRefresh = now;
   const totals = new Map<number, [number, number, number, number]>();
   for (const cell of state.cells.values()) {
-    const record = state.interiors.get(cell.id);
-    if (!record) continue;
-    const color = record.fluidColor ?? record.interior.averageColor();
+    const color = cell.fluidColor;
     const entry = totals.get(cell.pid) ?? [0, 0, 0, 0];
     totals.set(cell.pid, [entry[0] + color[0], entry[1] + color[1], entry[2] + color[2], entry[3] + 1]);
   }
@@ -130,6 +130,10 @@ function drawLabel(cell: CellVisual, width: number, height: number): void {
 
 export function drawLabels(): void {
   if (!state.joined) return;
+  if (!settings().names) {
+    labelContext.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
+    return;
+  }
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
   labelContext.clearRect(0, 0, width, height);

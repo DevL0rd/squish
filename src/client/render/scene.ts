@@ -1,11 +1,12 @@
-import { clamp, WORLD } from '../../shared/math.ts';
+import { clamp } from '../../shared/math.ts';
+import { FLUID_SPAN, fluidWindow } from './fluid-window.ts';
 import { vividColor } from '../color.ts';
 import { bindTexture, drawQuad, gl } from '../gl/context.ts';
 import { programs } from '../gl/programs.ts';
 import { screen, screenTargets } from '../gl/screen.ts';
 import { bindTarget, dye, velocity } from '../gl/targets.ts';
 import { inView, state } from '../state.ts';
-import { cellFluidColor } from '../world/interiors.ts';
+import { drawSpotlight } from './spotlight.ts';
 import { drawCreatures, drawDebris, drawFood, drawHalos, drawShadows } from './sprites.ts';
 import { setView } from './view.ts';
 
@@ -22,7 +23,7 @@ function buildLights(): number {
     .slice(0, MAX_LIGHTS);
   lit.forEach((cell, i) => {
     lightPositions.set([cell.x, cell.y], i * 2);
-    lightColors.set(vividColor(cellFluidColor(cell)), i * 3);
+    lightColors.set(vividColor(cell.fluidColor), i * 3);
     lightRadii[i] = cell.radius * 3.2;
     lightIntensities[i] = clamp(cell.radius / 60, 0.4, 1.6);
   });
@@ -39,7 +40,8 @@ export function drawBase(time: number): void {
   const lightCount = buildLights();
   setView(programs.background)
     .float('uTime', time)
-    .float('uWorld', WORLD)
+    .vec2('uOrigin', fluidWindow.x, fluidWindow.y)
+    .float('uSpan', FLUID_SPAN)
     .int('uDye', 0)
     .int('uVelocity', 1)
     .int('uLightCount', lightCount)
@@ -53,4 +55,5 @@ export function drawBase(time: number): void {
   drawDebris(false, time);
   drawShadows();
   drawHalos();
+  drawSpotlight(time);
 }

@@ -1,6 +1,7 @@
+import { settings } from './ui/settings.ts';
 import { clamp } from '../shared/math.ts';
-import { toggleSound } from './audio.ts';
-import { canvas, ejectButton, intro, joystick, joystickKnob, nameInput, splitButton } from './dom.ts';
+import { toggleMusic, toggleSound } from './audio.ts';
+import { boostButton, canvas, ejectButton, intro, joystick, joystickKnob, nameInput, splitButton } from './dom.ts';
 import type { Net } from './net.ts';
 import { playerCenter, shake, state } from './state.ts';
 
@@ -37,7 +38,9 @@ export function stopJoystick(): void {
 }
 
 function beginJoystick(event: PointerEvent): boolean {
-  if (event.clientX > window.innerWidth * 0.52 || !playerCenter()) return false;
+  const leftSide = settings().joystick === 'left';
+  const inZone = leftSide ? event.clientX < window.innerWidth * 0.52 : event.clientX > window.innerWidth * 0.48;
+  if (!inZone || !playerCenter()) return false;
   Object.assign(stick, { active: true, id: event.pointerId, x: event.clientX, y: event.clientY, dx: 0, dy: 0 });
   joystick.hidden = false;
   joystick.style.left = `${event.clientX}px`;
@@ -130,7 +133,7 @@ function holdButton(button: HTMLButtonElement, action: () => void, vibration: nu
     event.preventDefault();
     event.stopPropagation();
     action();
-    if ('vibrate' in navigator) navigator.vibrate(vibration);
+    if (settings().vibration && 'vibrate' in navigator) navigator.vibrate(vibration);
   });
   button.addEventListener('click', (event) => {
     event.preventDefault();
@@ -138,27 +141,46 @@ function holdButton(button: HTMLButtonElement, action: () => void, vibration: nu
   });
 }
 
-function onKey(event: KeyboardEvent, net: Net): void {
-  if (event.target === nameInput) return;
-  if (event.code === 'Space') {
-    event.preventDefault();
+const KEYS: Readonly<Record<string, (net: Net) => void>> = {
+  Space: (net) => {
     net.split();
     shake(1.3);
-  } else if (event.code === 'KeyW') {
-    event.preventDefault();
+  },
+  KeyW: (net) => {
     net.eject();
-  } else if (event.code === 'KeyM') {
-    toggleSound();
-  }
+  },
+  ShiftLeft: (net) => {
+    net.boost();
+  },
+  ShiftRight: (net) => {
+    net.boost();
+  },
+  KeyM: toggleSound,
+  KeyN: toggleMusic,
+};
+
+function onKey(event: KeyboardEvent, net: Net, blocked: () => boolean): void {
+  if (event.target === nameInput || blocked() || event.repeat) return;
+  const action = KEYS[event.code];
+  if (!action) return;
+  event.preventDefault();
+  action(net);
 }
 
-export function bindInput(net: Net): void {
+export function bindInput(net: Net, blocked: () => boolean): void {
   holdButton(
     splitButton,
     () => {
       net.split();
     },
     8,
+  );
+  holdButton(
+    boostButton,
+    () => {
+      net.boost();
+    },
+    14,
   );
   holdButton(
     ejectButton,
@@ -168,7 +190,7 @@ export function bindInput(net: Net): void {
     6,
   );
   window.addEventListener('keydown', (event) => {
-    onKey(event, net);
+    onKey(event, net, blocked);
   });
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);

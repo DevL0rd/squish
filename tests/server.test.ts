@@ -6,15 +6,13 @@ import { ByteReader } from '../src/shared/bytes.ts';
 import { decodeSnapshot } from '../src/shared/codec.ts';
 import { Packet, type ServerMessage } from '../src/shared/protocol.ts';
 
-const PORT = 5600 + Math.floor(Math.random() * 300);
-
-async function startServer(): Promise<() => void> {
-  const child = spawn(process.execPath, ['src/server/main.ts'], {
-    env: { ...process.env, PORT: String(PORT) },
+async function startServer(): Promise<{ port: number; stop: () => void }> {
+  const child = spawn(process.execPath, ['src/server/main.ts', '--port', '0'], {
     stdio: ['ignore', 'pipe', 'inherit'],
   });
-  await once(child.stdout, 'data');
-  return () => child.kill();
+  const [chunk] = (await once(child.stdout, 'data')) as [Buffer];
+  const port = Number(/listening on (\d+)/.exec(chunk.toString())?.[1]);
+  return { port, stop: () => child.kill() };
 }
 
 function nextText(socket: WebSocket, type: ServerMessage['t']): Promise<ServerMessage> {
@@ -27,32 +25,35 @@ function nextText(socket: WebSocket, type: ServerMessage['t']): Promise<ServerMe
   });
 }
 
-function nextSnapshot(socket: WebSocket): Promise<ReturnType<typeof decodeSnapshot>> {
+function snapshotWith(socket: WebSocket, playerId: () => number): Promise<void> {
   return new Promise((resolve) => {
     socket.addEventListener('message', (event) => {
       if (!(event.data instanceof ArrayBuffer)) return;
       const reader = new ByteReader(new DataView(event.data));
-      if (reader.u8() === Packet.Snapshot) resolve(decodeSnapshot(reader));
+      if (reader.u8() !== Packet.Snapshot) return;
+      if (decodeSnapshot(reader).players.some((player) => player.id === playerId())) resolve();
     });
   });
 }
 
 await test('server reports health and accepts a player', async () => {
-  const stop = await startServer();
+  const { port, stop } = await startServer();
   try {
-    const health = (await (await fetch(`http://localhost:${PORT}/health`)).json()) as { ok: boolean; bots: number };
+    const health = (await (await fetch(`http://localhost:${port}/health`)).json()) as { ok: boolean; bots: number };
     assert.equal(health.ok, true);
     assert.equal(health.bots, 12);
-    const socket = new WebSocket(`ws://localhost:${PORT}/ws`);
+    const socket = new WebSocket(`ws://localhost:${port}/ws`);
     socket.binaryType = 'arraybuffer';
     await once(socket, 'open');
+    let joinedId = -1;
     const welcome = nextText(socket, 'welcome');
-    const snapshot = nextSnapshot(socket);
+    const snapshot = snapshotWith(socket, () => joinedId);
     socket.send(JSON.stringify({ t: 'join', name: 'Tester\u0001', hue: -1 }));
     const message = await welcome;
-    assert.equal(message.t === 'welcome' && message.name, 'Tester');
-    const players = (await snapshot).players;
-    assert.ok(players.some((player) => message.t === 'welcome' && player.id === message.id));
+    assert.ok(message.t === 'welcome');
+    assert.equal(message.name, 'Tester');
+    joinedId = message.id;
+    await snapshot;
     socket.close();
   } finally {
     stop();

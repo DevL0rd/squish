@@ -1,5 +1,5 @@
 import { encodeFood, encodeSnapshot } from '../shared/codec.ts';
-import { creaturePacket } from './creatures.ts';
+import { creaturePacket } from './life/creatures.ts';
 import type { Client } from './types.ts';
 import { send } from './transport.ts';
 import { playerCenter, withinRange, world } from './world.ts';

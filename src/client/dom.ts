@@ -24,10 +24,27 @@ export const respawnButton = element('respawnBtn', HTMLButtonElement);
 const statusBox = element('status', HTMLElement);
 export const boot = element('boot', HTMLElement);
 export const soundButton = element('soundBtn', HTMLButtonElement);
+export const musicButton = element('musicBtn', HTMLButtonElement);
 export const splitButton = element('splitBtn', HTMLButtonElement);
 export const ejectButton = element('ejectBtn', HTMLButtonElement);
 export const joystick = element('joystick', HTMLElement);
 export const joystickKnob = element('joystickKnob', HTMLElement);
+export const guide = element('guide', HTMLElement);
+export const guideOpen = element('guideOpen', HTMLButtonElement);
+export const guideClose = element('guideClose', HTMLButtonElement);
+export const settingsDialog = element('settings', HTMLDialogElement);
+export const settingsOpen = element('settingsOpen', HTMLButtonElement);
+export const settingsButton = element('settingsBtn', HTMLButtonElement);
+export const settingsClose = element('settingsClose', HTMLButtonElement);
+export const settingsReset = element('settingsReset', HTMLButtonElement);
+export const settingsBody = element('settingsBody', HTMLElement);
+export const settingsNote = element('settingsNote', HTMLElement);
+export const mealsList = element('meals', HTMLOListElement);
+export const effectsBox = element('effects', HTMLElement);
+export const digestLabel = element('digestLabel', HTMLElement);
+export const digestFill = element('digestFill', HTMLElement);
+export const pigmentDot = element('pigmentDot', HTMLElement);
+export const pigmentLabel = element('pigmentLabel', HTMLElement);
 
 export const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
 
@@ -41,3 +58,11 @@ export function showStatus(text: string, duration = 2400): void {
     statusBox.classList.remove('show');
   }, duration);
 }
+export const adminPanel = element('admin', HTMLElement);
+export const adminOpen = element('adminOpen', HTMLButtonElement);
+export const eventBanner = element('eventBanner', HTMLElement);
+export const boostButton = element('boostBtn', HTMLButtonElement);
+export const boostMeter = element('boostMeter', HTMLElement);
+export const levelLabel = element('levelLabel', HTMLElement);
+export const attackLabel = element('attackLabel', HTMLElement);
+export const defenseLabel = element('defenseLabel', HTMLElement);

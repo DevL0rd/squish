@@ -14,9 +14,9 @@ import {
 } from './protocol.ts';
 
 const CELL_BYTES = 19;
-const EVENT_BYTES = 12;
-const FOOD_BYTES = 11;
-const CREATURE_BYTES = 13;
+const EVENT_BYTES = 15;
+const FOOD_BYTES = 12;
+const CREATURE_BYTES = 14;
 
 interface CellSource {
   readonly id: number;
@@ -35,6 +35,7 @@ interface PlayerSource {
 
 interface FoodSource {
   readonly id: number;
+  readonly variety: number;
   readonly x: number;
   readonly y: number;
   readonly radius: number;
@@ -51,6 +52,7 @@ interface CreatureSource {
   readonly angle: number;
   readonly color: Rgb;
   readonly phase: number;
+  readonly state: number;
 }
 
 function coordinate(value: number): number {
@@ -80,6 +82,8 @@ function writeEvent(writer: ByteWriter, event: WireEvent): void {
   writer.u16(coordinate(event.y));
   writeRgb(writer, event.color);
   writer.u8(event.kind);
+  writer.u16(clamp(Math.round(event.amount * 10), 0, 65535));
+  writer.u8(clamp(Math.round(event.bonus * 50), 0, 255));
 }
 
 export function encodeSnapshot(
@@ -115,6 +119,7 @@ export function encodeFood(tick: number, food: readonly FoodSource[]): Uint8Arra
     writer.u8(clamp(Math.round(item.radius), 1, 255));
     writeRgb(writer, item.color);
     writer.u8(item.ejecta ? 1 : 0);
+    writer.u8(item.variety);
   }
   return writer.bytes();
 }
@@ -137,6 +142,7 @@ export function encodeCreatures(tick: number, creatures: readonly CreatureSource
     writer.u8(angleByte(creature.angle));
     writeRgb(writer, creature.color);
     writer.u8(clamp(Math.round(creature.phase * 24) & 255, 0, 255));
+    writer.u8(creature.state);
   }
   return writer.bytes();
 }
@@ -167,7 +173,9 @@ function readEvent(reader: ByteReader): WireEvent {
   const x = reader.u16();
   const y = reader.u16();
   const color = reader.unitRgb();
-  return { cellId, predatorId, x, y, color, kind: reader.u8() };
+  const kind = reader.u8();
+  const amount = reader.u16() / 10;
+  return { cellId, predatorId, x, y, color, kind, amount, bonus: reader.u8() / 50 };
 }
 
 function readList<T>(reader: ByteReader, count: number, read: (reader: ByteReader) => T): T[] {
@@ -191,6 +199,7 @@ function readFood(reader: ByteReader): WireFood {
     radius: reader.u8(),
     color: reader.unitRgb(),
     ejecta: reader.u8() === 1,
+    variety: reader.u8(),
   };
 }
 
@@ -206,9 +215,10 @@ function readCreature(reader: ByteReader): WireCreature {
     y: reader.u16(),
     radius: reader.u8(),
     kind: reader.u8(),
-    angle: (reader.u8() / 255) * TAU - Math.PI,
+    angle: (reader.u8() / 255) * TAU,
     color: reader.unitRgb(),
     phase: reader.u8() / 24,
+    state: reader.u8(),
   };
 }
 

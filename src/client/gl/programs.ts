@@ -10,19 +10,22 @@ import {
   fluidSplat,
   quadVertex,
 } from '../shaders/fluid.ts';
-import { fusionFragment, fusionVertex } from '../shaders/fusion.ts';
-import { blitFragment, blurPass, brightPass, composite } from '../shaders/post.ts';
+import { blitFragment, blurPass, brightPass, composite, shiftFragment } from '../shaders/post.ts';
 import {
   bubbleFragment,
   bubbleVertex,
   debrisFragment,
   debrisVertex,
-  foodFragment,
-  foodVertex,
   haloFragment,
   haloVertex,
   shadowFragment,
 } from '../shaders/sprites.ts';
+import { foodFragment, foodVertex } from '../shaders/food.ts';
+import { bossFragment, bossVertex } from '../shaders/boss.ts';
+import { needleFragment, spotFragment } from '../shaders/spotlight.ts';
+import { obstacleFragment, obstacleVertex } from '../shaders/obstacle.ts';
+import { organelleFragment, organelleVertex } from '../shaders/organelle.ts';
+import { streakFragment, streakVertex } from '../shaders/streak.ts';
 import { ShaderProgram } from './program.ts';
 
 export const programs = {
@@ -39,10 +42,16 @@ export const programs = {
   bubble: new ShaderProgram(bubbleVertex, bubbleFragment),
   debris: new ShaderProgram(debrisVertex, debrisFragment),
   creature: new ShaderProgram(creatureVertex, creatureFragment),
-  fusion: new ShaderProgram(fusionVertex, fusionFragment),
+  organelle: new ShaderProgram(organelleVertex, organelleFragment),
+  obstacle: new ShaderProgram(obstacleVertex, obstacleFragment),
+  boss: new ShaderProgram(bossVertex, bossFragment),
+  spot: new ShaderProgram(cellVertex, spotFragment),
+  needle: new ShaderProgram(cellVertex, needleFragment),
+  streak: new ShaderProgram(streakVertex, streakFragment),
   bright: new ShaderProgram(quadVertex, brightPass),
   field: new ShaderProgram(quadVertex, fieldFragment),
   blur: new ShaderProgram(quadVertex, blurPass),
   blit: new ShaderProgram(quadVertex, blitFragment),
   composite: new ShaderProgram(quadVertex, composite),
+  shift: new ShaderProgram(quadVertex, shiftFragment),
 };

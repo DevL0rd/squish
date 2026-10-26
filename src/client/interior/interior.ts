@@ -1,34 +1,32 @@
 import { at, clamp, mulberry32, sampleGrid, type Rgb } from '../../shared/math.ts';
 import { dyeDensity } from './dye.ts';
 import { advect, project } from './fields.ts';
-import { InteriorFood, type FoodOptions } from './food.ts';
-
-export interface Organelle {
-  readonly type: number;
-  readonly radius: number;
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-}
 
 const DEFAULT_TINT: Rgb = [0.1, 0.13, 0.13];
 const STEP_INTERVAL = 1 / 34;
+const DYE_RETAIN = 0.9998;
+const BASE_PULL = 0.006;
+const DYE_CEILING = 1.4;
 
-function moveFraction(side: number): number {
-  if (side > 0.08) return 0.55;
-  return side < -0.08 ? 0 : 0.27;
+export interface DyeField {
+  readonly n: number;
+  readonly dye: readonly Float32Array[];
+  readonly u: Float32Array;
+  readonly v: Float32Array;
+}
+
+export interface Point {
+  readonly x: number;
+  readonly y: number;
 }
 
 export class Interior {
   readonly n: number;
   readonly textureData: Uint8Array;
-  readonly organelles: Organelle[] = [];
-  readonly food: InteriorFood;
   dirty = true;
   private readonly size: number;
   private readonly random: () => number;
-  private readonly swirlPhase: number;
+  private time: number;
   private readonly tint: Rgb;
   private readonly baseLevel: number;
   private u: Float32Array;
@@ -55,30 +53,11 @@ export class Interior {
     this.dye2 = [field(), field(), field()];
     this.textureData = new Uint8Array(this.size * 4);
     this.random = mulberry32(seed);
-    this.food = new InteriorFood(this.random, (x, y, color, strength) => {
-      this.addDye(x, y, color, strength);
-    });
-    this.swirlPhase = this.random() * 40;
+    this.time = this.random() * 40;
     this.tint = tint ?? DEFAULT_TINT;
     this.baseLevel = tint ? 0.4 : 0.02;
-    this.seedOrganelles();
     this.seedDye(seed | 0);
     this.writeTexture();
-  }
-
-  private seedOrganelles(): void {
-    const make = (type: number, radius: number): Organelle => ({
-      type,
-      radius,
-      x: (this.random() - 0.5) * 0.8,
-      y: (this.random() - 0.5) * 0.8,
-      vx: 0,
-      vy: 0,
-    });
-    this.organelles.push(make(0, 0.24 + this.random() * 0.05));
-    const vesicles = 3 + Math.floor(this.random() * 2);
-    for (let i = 0; i < vesicles; i += 1) this.organelles.push(make(1, 0.06 + this.random() * 0.055));
-    for (let i = 0; i < 2; i += 1) this.organelles.push(make(2, 0.08 + this.random() * 0.04));
   }
 
   private seedDye(seed: number): void {
@@ -101,7 +80,7 @@ export class Interior {
     ];
   }
 
-  private flowAt(x: number, y: number): [number, number] {
+  flowAt(x: number, y: number): [number, number] {
     const [gx, gy] = this.gridPoint(x, y, 1);
     const scale = this.n * 0.5;
     return [sampleGrid(this.u, this.n, gx, gy) / scale, sampleGrid(this.v, this.n, gx, gy) / scale];
@@ -112,43 +91,56 @@ export class Interior {
     return [r ?? 0, g ?? 0, b ?? 0];
   }
 
-  addFood(options: FoodOptions): void {
-    this.food.add(options);
-    this.dirty = true;
+  copyField(): DyeField {
+    return {
+      n: this.n,
+      dye: this.dye.map((channel) => Float32Array.from(channel)),
+      u: Float32Array.from(this.u),
+      v: Float32Array.from(this.v),
+    };
   }
 
-  mergeFrom(source: Interior, localX: number, localY: number, strength: number, spread: number): void {
+  remap(field: DyeField, offset: Point, ratio: number, additive: boolean): void {
     const n = this.n;
-    const sn = source.n;
-    const cx = (clamp(localX, -0.95, 0.95) * 0.5 + 0.5) * (n - 1);
-    const cy = (clamp(localY, -0.95, 0.95) * 0.5 + 0.5) * (n - 1);
-    const radius = Math.max(1.5, clamp(spread, 0.08, 0.9) * (n - 1) * 0.7);
-    for (let j = Math.max(0, Math.floor(cy - radius)); j <= Math.min(n - 1, Math.ceil(cy + radius)); j += 1) {
-      for (let i = Math.max(0, Math.floor(cx - radius)); i <= Math.min(n - 1, Math.ceil(cx + radius)); i += 1) {
-        const dx = (i - cx) / radius;
-        const dy = (j - cy) / radius;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance > 1) continue;
-        const weight = strength * (1 - distance) ** 1.4;
-        const sx = clamp((dx * 0.5 + 0.5) * (sn - 1), 0, sn - 1);
-        const sy = clamp((dy * 0.5 + 0.5) * (sn - 1), 0, sn - 1);
-        this.dye.forEach((channel, c) => {
-          const from = source.dye[c] ?? channel;
-          channel[j * n + i] = at(channel, j * n + i) + sampleGrid(from, sn, sx, sy) * weight;
-        });
+    for (let j = 0; j < n; j += 1) {
+      for (let i = 0; i < n; i += 1) {
+        const sx = (((i / (n - 1)) * 2 - 1 - offset.x) * ratio + 1) * 0.5 * (field.n - 1);
+        const sy = (((j / (n - 1)) * 2 - 1 - offset.y) * ratio + 1) * 0.5 * (field.n - 1);
+        const inside = sx >= 0 && sy >= 0 && sx <= field.n - 1 && sy <= field.n - 1;
+        if (inside || !additive) this.blendTexel(j * n + i, field, inside ? [sx, sy] : null, additive);
       }
     }
     this.dirty = true;
   }
 
-  transferFoodFrom(source: Interior, localX: number, localY: number, spread: number): void {
-    for (const item of source.food.items) {
-      this.addFood({
-        x: localX + item.x * spread,
-        y: localY + item.y * spread,
-        color: item.color,
-        size: item.size * spread,
-      });
+  private blendTexel(
+    index: number,
+    field: DyeField,
+    source: readonly [number, number] | null,
+    additive: boolean,
+  ): void {
+    const sample = (channel: Float32Array): number => (source ? sampleGrid(channel, field.n, source[0], source[1]) : 0);
+    this.dye.forEach((channel, c) => {
+      const value = sample(field.dye[c] ?? channel);
+      channel[index] = additive ? at(channel, index) + value : value;
+    });
+    this.u[index] = (additive ? at(this.u, index) : 0) + sample(field.u);
+    this.v[index] = (additive ? at(this.v, index) : 0) + sample(field.v);
+  }
+
+  addVortex(x: number, y: number, radius: number, strength: number): void {
+    const n = this.n;
+    const [cx, cy] = this.gridPoint(x, y, 0);
+    const reach = Math.max(1.5, radius * (n - 1) * 0.5);
+    for (let j = 0; j < n; j += 1) {
+      for (let i = 0; i < n; i += 1) {
+        const dx = (i - cx) / reach;
+        const dy = (j - cy) / reach;
+        const falloff = Math.exp(-(dx * dx + dy * dy) * 2);
+        if (falloff < 0.01) continue;
+        this.u[j * n + i] = at(this.u, j * n + i) - dy * strength * falloff;
+        this.v[j * n + i] = at(this.v, j * n + i) + dx * strength * falloff;
+      }
     }
   }
 
@@ -158,29 +150,6 @@ export class Interior {
       for (let i = 0; i < this.size; i += 1) channel[i] = at(channel, i) * keep;
     }
     this.dirty = true;
-  }
-
-  splitTo(target: Interior, dirX: number, dirY: number): void {
-    const n = this.n;
-    for (const channel of target.dye) channel.fill(0);
-    for (let j = 0; j < n; j += 1) {
-      for (let i = 0; i < n; i += 1) {
-        const side = ((i / (n - 1)) * 2 - 1) * dirX + ((j / (n - 1)) * 2 - 1) * dirY;
-        const move = moveFraction(side);
-        if (move > 0) this.moveDye(target, j * n + i, move);
-      }
-    }
-    this.food.splitTo(target.food, dirX, dirY);
-    this.dirty = true;
-    target.dirty = true;
-  }
-
-  private moveDye(target: Interior, index: number, move: number): void {
-    this.dye.forEach((channel, c) => {
-      const destination = target.dye[c];
-      if (destination) destination[index] = at(channel, index) * move;
-      channel[index] = at(channel, index) * (1 - move);
-    });
   }
 
   addDye(x: number, y: number, color: Rgb, strength: number): void {
@@ -212,7 +181,7 @@ export class Interior {
 
   private stir(dt: number, motion: { readonly vx: number; readonly vy: number }): void {
     const n = this.n;
-    const time = this.swirlPhase;
+    const time = this.time;
     const speed = Math.hypot(motion.vx, motion.vy) + 0.001;
     const flow = Math.min(2.4, speed * 0.0042);
     const pushX = (motion.vx / speed) * flow * 3.4;
@@ -257,41 +226,23 @@ export class Interior {
         [g, g2],
         [b, b2],
       ],
-      0.995,
+      DYE_RETAIN,
     );
     [this.dye, this.dye2] = [this.dye2, this.dye];
     this.homeostasis(dt);
-    this.updateOrganelles(dt);
-    this.food.update(dt, (x, y) => this.flowAt(x, y));
+    this.time += dt;
     this.writeTexture();
   }
 
   private homeostasis(dt: number): void {
-    const rate = Math.min(0.4, dt * 0.085);
+    const rate = Math.min(0.4, dt * BASE_PULL);
     this.dye.forEach((channel, c) => {
       const base = at(this.tint, c) * this.baseLevel;
-      for (let i = 0; i < this.size; i += 1) channel[i] = at(channel, i) + (base - at(channel, i)) * rate;
-    });
-  }
-
-  private updateOrganelles(dt: number): void {
-    for (const item of this.organelles) {
-      const [flowU, flowV] = this.flowAt(item.x, item.y);
-      const weight = item.type === 0 ? 0.18 : 0.55;
-      const orbit = item.type === 0 ? 0.05 : 0.16;
-      item.vx = (item.vx + flowU * dt * weight - item.y * orbit * dt) * 0.94;
-      item.vy = (item.vy + flowV * dt * weight + item.x * orbit * dt) * 0.94;
-      item.x += item.vx * dt;
-      item.y += item.vy * dt;
-      const limit = Math.max(0.1, 0.62 - item.radius);
-      const distance = Math.hypot(item.x, item.y);
-      if (distance > limit) {
-        item.x *= limit / distance;
-        item.y *= limit / distance;
-        item.vx *= -0.35;
-        item.vy *= -0.35;
+      for (let i = 0; i < this.size; i += 1) {
+        const value = at(channel, i) + (base - at(channel, i)) * rate;
+        channel[i] = value > DYE_CEILING ? DYE_CEILING + (value - DYE_CEILING) * 0.9 : value;
       }
-    }
+    });
   }
 
   private writeTexture(): void {
@@ -303,7 +254,6 @@ export class Interior {
       data[i * 4 + 2] = clamp(at(b, i) * 255, 0, 255);
       data[i * 4 + 3] = 255;
     }
-    this.food.paint(data, this.n);
     this.dirty = false;
   }
 }

@@ -1,7 +1,6 @@
+import { QUALITY, settings } from '../ui/settings.ts';
 import { canvas, coarsePointer, labelCanvas } from '../dom.ts';
 import { createScreenTargets, deleteScreenTargets, type ScreenTargets } from './targets.ts';
-
-const PIXEL_RATIO_CAP = coarsePointer ? 1.5 : 1.6;
 
 export const labelContext = (() => {
   const context = labelCanvas.getContext('2d');
@@ -20,9 +19,20 @@ export function screenTargets(): ScreenTargets {
   return screen.targets;
 }
 
+let backdropTexture: WebGLTexture | null = null;
+
+export function setBackdrop(texture: WebGLTexture): void {
+  backdropTexture = texture;
+}
+
+export function backdrop(): WebGLTexture {
+  return backdropTexture ?? screenTargets().base.texture;
+}
+
 export function resize(): void {
   const rect = canvas.getBoundingClientRect();
-  const pixelRatio = Math.min(window.devicePixelRatio || 1, PIXEL_RATIO_CAP);
+  const cap = Math.min(QUALITY[settings().quality].pixelRatio, coarsePointer ? 1.5 : 2);
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, cap);
   const width = Math.max(1, Math.floor(Math.max(1, Math.floor(rect.width)) * pixelRatio));
   const height = Math.max(1, Math.floor(Math.max(1, Math.floor(rect.height)) * pixelRatio));
   if (width === screen.width && height === screen.height) return;

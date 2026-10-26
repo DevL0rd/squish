@@ -1,5 +1,5 @@
 import { MAX_NAME } from '../shared/protocol.ts';
-import { playSfx, startAmbience, toggleSound } from './audio.ts';
+import { bindAudioSettings, playSfx, startAmbience, toggleMusic, toggleSound } from './audio.ts';
 import {
   boot,
   deathScreen,
@@ -11,6 +11,7 @@ import {
   nameInput,
   respawnButton,
   showStatus,
+  musicButton,
   soundButton,
   specimenName,
 } from './dom.ts';
@@ -18,11 +19,22 @@ import { resize } from './gl/screen.ts';
 import { drawLabels, updateOccupancy, updateUI } from './hud.ts';
 import { bindInput, steerWithJoystick, stopJoystick } from './input.ts';
 import { Net } from './net.ts';
+import { enableAdmin } from './ui/admin.ts';
+import { showBoost } from './ui/boost.ts';
+import { showProgress } from './ui/progress.ts';
+import { updateEventBanner } from './ui/event-banner.ts';
+import { updateCreatureChatter } from './voices.ts';
 import { seedFluid } from './render/fluid.ts';
 import { renderFrame } from './render/frame.ts';
 import { playerCenter, state } from './state.ts';
 import { resetDecor } from './world/decor.ts';
+import { receiveHazards } from './world/hazards.ts';
+import { receiveDrift, receiveShapes } from './world/obstacles.ts';
 import { updateSimulation } from './world/simulation.ts';
+import { bindInterfaceSettings } from './ui/apply.ts';
+import { clearEffects, updateEffects } from './ui/effects.ts';
+import { resetMeals, updateMeals } from './ui/meals.ts';
+import { bindMenus, menuOpen } from './ui/menus.ts';
 import { processCreatures, processFood, processSnapshot } from './world/sync.ts';
 
 const IDENTITY_KEY = 'squish.identity';
@@ -44,14 +56,18 @@ const net = new Net({
   onWelcome: (message) => {
     state.me = message.id;
     state.joined = true;
+    state.joinedAt = performance.now();
     state.dead = false;
     state.targetReady = false;
     deathScreen.hidden = true;
     intro.classList.add('leaving');
     hud.hidden = false;
     specimenName.textContent = message.name;
+    resetMeals();
+    clearEffects();
     resetDecor();
     startAmbience();
+    enableAdmin(message.admin, net);
     showStatus('you are in the suspension', 1600);
   },
   onRoster: (players) => {
@@ -61,6 +77,13 @@ const net = new Net({
   onSnapshot: processSnapshot,
   onFood: processFood,
   onCreature: processCreatures,
+  onObstacles: receiveShapes,
+  onDrift: receiveDrift,
+  onHazards: receiveHazards,
+  onAnnounce: (text, danger) => {
+    showStatus(text, danger ? 5200 : 3200);
+    if (danger) playSfx('death', 0.35);
+  },
   onDead: (by) => {
     state.dead = true;
     killerLabel.textContent = by || 'the culture';
@@ -70,9 +93,12 @@ const net = new Net({
     stopJoystick();
     showStatus('membrane compromised', 2200);
   },
+  onBoost: showBoost,
+  onProgress: showProgress,
   onRespawned: () => {
     state.dead = false;
     state.joined = true;
+    state.joinedAt = performance.now();
     state.targetReady = false;
     deathScreen.hidden = true;
     showStatus('re-entered the suspension', 1400);
@@ -113,6 +139,7 @@ function bindForms(): void {
     net.respawn();
   });
   soundButton.addEventListener('click', toggleSound);
+  musicButton.addEventListener('click', toggleMusic);
 }
 
 const timers = { input: 0, view: 0, frame: performance.now() };
@@ -139,6 +166,10 @@ function loop(): void {
   renderFrame(dt);
   drawLabels();
   updateUI();
+  updateEventBanner();
+  updateCreatureChatter();
+  updateMeals(dt);
+  updateEffects();
   requestAnimationFrame(loop);
 }
 
@@ -146,7 +177,12 @@ window.addEventListener('resize', resize);
 resize();
 restoreName();
 bindForms();
-bindInput(net);
+bindInput(net, menuOpen);
+bindMenus();
+bindAudioSettings();
+window.addEventListener('pointerdown', startAmbience, { once: true });
+window.addEventListener('keydown', startAmbience, { once: true });
+bindInterfaceSettings();
 resetDecor();
 seedFluid();
 requestAnimationFrame(loop);

@@ -1,71 +1,44 @@
 import { radiusFor } from '../../shared/math.ts';
 import type { CreaturePacket, FoodPacket, Snapshot, WireCell } from '../../shared/protocol.ts';
-import { hexSeed } from '../color.ts';
-import { coarsePointer } from '../dom.ts';
-import { SoftBody } from '../softbody/softbody.ts';
-import { state, type CellVisual } from '../state.ts';
+import { type CellVisual, createCellVisual } from '../cell/cell.ts';
+import { freshSpawn, state } from '../state.ts';
+import { creatureStateSound } from '../voices.ts';
 import { processEvent } from './events.ts';
-import { removeCell } from './interiors.ts';
+import { removeCell } from './textures.ts';
 
-const RING_COUNT = coarsePointer ? 48 : 64;
 const CELL_TIMEOUT = 850;
 const FOOD_TIMEOUT = 2400;
 
-function createCell(cell: WireCell, pid: number, now: number): CellVisual {
-  const meta = state.roster.get(pid);
-  const radius = radiusFor(cell.mass);
-  const soft = new SoftBody(RING_COUNT, hexSeed(cell.id * 1013 + 71));
-  soft.reset(cell.x, cell.y, radius);
-  return {
-    id: cell.id,
-    pid,
-    x: cell.x,
-    y: cell.y,
-    tx: cell.x,
-    ty: cell.y,
-    vx: cell.vx,
-    vy: cell.vy,
-    mass: cell.mass,
-    radius,
-    targetRadius: radius,
-    hue: meta?.hue ?? 168,
-    name: meta?.name ?? 'organism',
-    bot: meta?.bot ?? false,
-    lastSeen: now,
-    mergeReady: cell.mergeReady,
-    soft,
-  };
+const UNKNOWN = { hue: 168, name: 'organism', bot: false };
+
+function identity(pid: number, fallback?: CellVisual): { hue: number; name: string; bot: boolean } {
+  const source = state.roster.get(pid) ?? fallback ?? UNKNOWN;
+  return { hue: source.hue, name: source.name, bot: source.bot };
 }
 
-function correctTarget(visual: CellVisual, cell: WireCell): void {
-  if (visual.pid === state.me && state.joined && !state.dead) {
-    const errorX = cell.x - visual.tx;
-    const errorY = cell.y - visual.ty;
-    if (Math.hypot(errorX, errorY) > 140) {
-      visual.tx += errorX * 0.45;
-      visual.ty += errorY * 0.45;
-    }
-    return;
-  }
-  visual.tx = cell.x + cell.vx * 0.055;
-  visual.ty = cell.y + cell.vy * 0.055;
+const TELEPORT = 1500;
+
+function teleported(cell: WireCell, pid: number): void {
+  const visual = state.cells.get(cell.id);
+  if (!visual || pid !== state.me) return;
+  const dx = cell.x - visual.tx;
+  const dy = cell.y - visual.ty;
+  if (Math.hypot(dx, dy) < TELEPORT) return;
+  removeCell(cell.id);
+  state.camera.x += dx;
+  state.camera.y += dy;
+  state.target.x += dx;
+  state.target.y += dy;
 }
 
 function syncCell(cell: WireCell, pid: number, now: number): void {
-  const visual = state.cells.get(cell.id) ?? createCell(cell, pid, now);
+  teleported(cell, pid);
+  const visual = state.cells.get(cell.id) ?? createCellVisual(cell, pid, identity(pid), now);
   state.cells.set(cell.id, visual);
-  const meta = state.roster.get(pid);
-  visual.pid = pid;
-  correctTarget(visual, cell);
-  visual.vx = cell.vx;
-  visual.vy = cell.vy;
-  visual.mass = cell.mass;
+  Object.assign(visual, identity(pid, visual), { pid, vx: cell.vx, vy: cell.vy, mass: cell.mass, lastSeen: now });
   visual.targetRadius = radiusFor(cell.mass);
-  visual.hue = meta?.hue ?? visual.hue;
-  visual.name = meta?.name ?? visual.name;
-  visual.bot = meta?.bot ?? visual.bot;
-  visual.lastSeen = now;
-  visual.mergeReady = cell.mergeReady;
+  visual.tx = cell.x + cell.vx * 0.055;
+  visual.ty = cell.y + cell.vy * 0.055;
   if (pid !== state.me || state.targetReady) return;
   state.target.x = cell.x;
   state.target.y = cell.y;
@@ -97,17 +70,26 @@ export function processCreatures(packet: CreaturePacket): void {
       ...creature,
       tx: creature.x,
       ty: creature.y,
-      angle: 0,
+      angle: creature.angle,
       targetAngle: creature.angle,
+      stateSince: performance.now(),
+      grow: freshSpawn(creature) ? 0 : 1,
     };
+    if (creature.state !== visual.state) {
+      visual.stateSince = performance.now();
+      creatureStateSound(visual, creature.state);
+    }
     state.creatures.set(creature.id, visual);
-    visual.tx = creature.x;
-    visual.ty = creature.y;
-    visual.radius = creature.radius;
-    visual.kind = creature.kind;
-    visual.color = creature.color;
-    visual.targetAngle = creature.angle;
-    visual.phase = creature.phase;
+    Object.assign(visual, {
+      tx: creature.x,
+      ty: creature.y,
+      radius: creature.radius,
+      kind: creature.kind,
+      color: creature.color,
+      targetAngle: creature.angle,
+      phase: creature.phase,
+      state: creature.state,
+    });
   }
   for (const id of state.creatures.keys()) {
     if (!seen.has(id)) state.creatures.delete(id);
@@ -124,17 +106,21 @@ export function processFood(packet: FoodPacket): void {
       tx: food.x,
       ty: food.y,
       targetRadius: food.radius,
+      grow: freshSpawn(food) ? 0 : 1,
       alpha: 0,
       targetAlpha: 1,
       lastSeen: now,
       phase: Math.random() * 10,
     };
     state.food.set(food.id, visual);
-    visual.tx = food.x;
-    visual.ty = food.y;
-    visual.targetRadius = food.radius;
-    visual.color = food.color;
-    visual.ejecta = food.ejecta;
+    Object.assign(visual, {
+      tx: food.x,
+      ty: food.y,
+      targetRadius: food.radius,
+      color: food.color,
+      ejecta: food.ejecta,
+      variety: food.variety,
+    });
     visual.targetAlpha = 1;
     visual.lastSeen = now;
   }
