@@ -206,6 +206,7 @@ bindForms();
 bindInput(net, menuOpen);
 bindMenus();
 bindAudioSettings();
+startAmbience();
 window.addEventListener('pointerdown', startAmbience, { once: true });
 window.addEventListener('keydown', startAmbience, { once: true });
 bindInterfaceSettings();

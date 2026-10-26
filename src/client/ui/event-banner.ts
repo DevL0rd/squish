@@ -63,6 +63,19 @@ function row(status: Status): HTMLElement {
   return element;
 }
 
+function closestSpot(spots: readonly WireSpot[]): WireSpot | undefined {
+  const mine = ownCells();
+  const me = mine[0];
+  if (!me) return spots[0];
+  const targeted = spots.find((spot) => mine.some((cell) => cell.id === spot.target));
+  if (targeted) return targeted;
+  let best: WireSpot | undefined;
+  for (const spot of spots) {
+    if (!best || Math.hypot(spot.x - me.x, spot.y - me.y) < Math.hypot(best.x - me.x, best.y - me.y)) best = spot;
+  }
+  return best;
+}
+
 let last = 0;
 
 export function updateEventBanner(): void {
@@ -70,7 +83,8 @@ export function updateEventBanner(): void {
   if (now - last < INTERVAL) return;
   last = now;
   const view = hazardView();
-  const statuses = [view.boss ? bossStatus(view.boss) : null, view.spot ? spotStatus(view.spot) : null].filter(
+  const spot = closestSpot(view.spots);
+  const statuses = [view.boss ? bossStatus(view.boss) : null, spot ? spotStatus(spot) : null].filter(
     (item): item is Status => item !== null,
   );
   eventBanner.hidden = statuses.length === 0;

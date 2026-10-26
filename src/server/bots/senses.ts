@@ -1,6 +1,6 @@
 import { cloudZones } from '../combat/clouds.ts';
 import { bossClosest } from '../hazards/events.ts';
-import { spotWire } from '../hazards/pipette.ts';
+import { spotWires } from '../hazards/pipette.ts';
 import { Behavior, speciesOf } from '../life/species.ts';
 import { cellsNear, foodsNear } from '../life/senses.ts';
 import { affinity } from '../pigment.ts';
@@ -95,8 +95,16 @@ function bestFood(self: Player, main: Cell): Food | null {
 }
 
 function spot(main: Cell): Spot | null {
-  const wire = spotWire();
-  return wire ? { x: wire.x, y: wire.y, radius: wire.radius, mine: wire.target === main.id } : null;
+  let best: Spot | null = null;
+  let bestGap = Infinity;
+  for (const wire of spotWires()) {
+    const mine = wire.target === main.id;
+    const gap = mine ? -1 : Math.hypot(wire.x - main.x, wire.y - main.y) - wire.radius;
+    if (gap >= bestGap) continue;
+    bestGap = gap;
+    best = { x: wire.x, y: wire.y, radius: wire.radius, mine };
+  }
+  return best;
 }
 
 export function look(self: Player, main: Cell): View {

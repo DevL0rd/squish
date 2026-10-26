@@ -1,6 +1,11 @@
 @media (pointer: coarse) {
-  .foot-desktop {
+  .foot-desktop,
+  .controls-desktop {
     display: none;
+  }
+
+  .controls-touch {
+    display: grid;
   }
 
   .foot-touch {
@@ -54,15 +59,6 @@
 
   .intro-foot .foot-rule {
     display: none;
-  }
-
-  .intro-foot .foot-desktop {
-    display: none;
-  }
-
-  .intro-foot .foot-touch {
-    display: inline;
-    white-space: normal;
   }
 
   .edge-note {

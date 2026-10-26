@@ -14,7 +14,7 @@ function unit(value: number): number {
 function size(packet: HazardPacket): number {
   const joints = packet.boss?.chains.reduce((sum, chain) => sum + chain.length, 0) ?? 0;
   const chains = packet.boss?.chains.length ?? 0;
-  return 3 + (packet.spot ? 14 : 0) + (packet.boss ? 5 + chains + joints * 6 : 0);
+  return 3 + packet.spots.length * 14 + (packet.boss ? 5 + chains + joints * 6 : 0);
 }
 
 function writeSpot(writer: ByteWriter, spot: WireSpot): void {
@@ -47,8 +47,8 @@ function writeBoss(writer: ByteWriter, boss: WireBoss): void {
 export function encodeHazards(packet: HazardPacket): Uint8Array {
   const writer = new ByteWriter(size(packet));
   writer.u8(Packet.Hazard);
-  writer.u8(packet.spot ? 1 : 0);
-  if (packet.spot) writeSpot(writer, packet.spot);
+  writer.u8(packet.spots.length);
+  for (const spot of packet.spots) writeSpot(writer, spot);
   writer.u8(packet.boss ? 1 : 0);
   if (packet.boss) writeBoss(writer, packet.boss);
   return writer.bytes();
@@ -82,7 +82,7 @@ function readBoss(reader: ByteReader): WireBoss {
 }
 
 export function decodeHazards(reader: ByteReader): HazardPacket {
-  const spot = reader.u8() ? readSpot(reader) : null;
+  const spots = Array.from({ length: reader.u8() }, () => readSpot(reader));
   const boss = reader.u8() ? readBoss(reader) : null;
-  return { spot, boss };
+  return { spots, boss };
 }

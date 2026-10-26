@@ -26,18 +26,28 @@ interface Spot {
   readonly angle: number;
 }
 
-let spot: Spot | null = null;
+const TARGET_SHARE = 0.25;
 
-function pickTarget(): Player | undefined {
-  const candidates = [...world.players.values()].filter((player) => player.cells.length);
-  return candidates[Math.floor(Math.random() * candidates.length)];
+let spots: Spot[] = [];
+
+function pickTargets(): Player[] {
+  const candidates = [...world.players.values()]
+    .filter((player) => player.cells.length)
+    .map((player) => ({ player, order: Math.random() }))
+    .sort((a, b) => a.order - b.order)
+    .map((item) => item.player);
+  return candidates.slice(0, Math.ceil(candidates.length * TARGET_SHARE));
 }
 
-export function startPipette(tool: number, forced?: Player): boolean {
-  const target = biggestCell(forced ?? pickTarget());
+export function startPipettes(tool: number): boolean {
+  return pickTargets().filter((player) => startPipette(tool, player)).length > 0;
+}
+
+export function startPipette(tool: number, player: Player): boolean {
+  const target = biggestCell(player);
   if (!target) return false;
   const angle = Math.random() * Math.PI * 2;
-  spot = {
+  spots.push({
     x: target.x + Math.cos(angle) * 1100,
     y: target.y + Math.sin(angle) * 1100,
     vx: 0,
@@ -50,12 +60,12 @@ export function startPipette(tool: number, forced?: Player): boolean {
     target: target.id,
     tool,
     angle: Math.random() * Math.PI,
-  };
+  });
   return true;
 }
 
 export function pipetteActive(): boolean {
-  return spot !== null;
+  return spots.length > 0;
 }
 
 function targetCell(current: Spot): Cell | undefined {
@@ -114,17 +124,17 @@ function advance(current: Spot, cell: Cell): void {
   else if (current.phase === SpotPhase.Strike && current.phaseTime >= strikeTime(current)) release(current, cell);
 }
 
-export function updatePipette(dt: number): void {
-  const current = spot;
-  if (!current) return;
+export function updatePipettes(dt: number): void {
+  for (const current of spots) updatePipette(current, dt);
+  spots = spots.filter((current) => current.phase !== SpotPhase.Fade || current.phaseTime < FADE_TIME);
+}
+
+function updatePipette(current: Spot, dt: number): void {
   current.age += dt;
   current.phaseTime += dt;
   current.lock += dt;
   const cell = targetCell(current);
-  if (current.phase === SpotPhase.Fade) {
-    if (current.phaseTime >= FADE_TIME) spot = null;
-    return;
-  }
+  if (current.phase === SpotPhase.Fade) return;
   if (!cell || current.age > LIFETIME) {
     if (current.phase !== SpotPhase.Strike) enter(current, SpotPhase.Fade);
     return;
@@ -136,8 +146,11 @@ export function updatePipette(dt: number): void {
   advance(current, cell);
 }
 
-export function spotWire(): WireSpot | null {
-  if (!spot) return null;
+export function spotWires(): WireSpot[] {
+  return spots.map(spotWire);
+}
+
+function spotWire(spot: Spot): WireSpot {
   const durations: Readonly<Record<number, number>> = {
     [SpotPhase.Roam]: LOCK_TIME,
     [SpotPhase.Focus]: FOCUS_TIME,

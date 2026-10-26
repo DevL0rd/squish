@@ -243,6 +243,6 @@ export interface WireBoss {
 }
 
 export interface HazardPacket {
-  readonly spot: WireSpot | null;
+  readonly spots: readonly WireSpot[];
   readonly boss: WireBoss | null;
 }

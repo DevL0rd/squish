@@ -95,8 +95,16 @@ function startWater(context: AudioContext, master: GainNode, buffer: AudioBuffer
   noise.start();
 }
 
+function wake(sound: Audio): void {
+  if (sound.context.state === 'suspended') void sound.context.resume().catch(() => undefined);
+  applyLevels(settings());
+}
+
 export function startAmbience(): void {
-  if (audio) return;
+  if (audio) {
+    wake(audio);
+    return;
+  }
   try {
     const context = new AudioContext();
     const master = gainNode(context, 0.0001, context.destination);

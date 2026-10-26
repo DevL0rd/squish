@@ -4,7 +4,7 @@ import { LIGHTS_BINDING } from '../gl/program.ts';
 import { MAX_POINT_LIGHTS } from '../shaders/lighting.ts';
 import { inView, state } from '../state.ts';
 import { hazardView } from '../world/hazards.ts';
-import { SpotPhase } from '../../shared/protocol.ts';
+import { SpotPhase, type WireSpot } from '../../shared/protocol.ts';
 
 const FLOATS = (4 + MAX_POINT_LIGHTS * 2 + 1) * 4;
 const data = new Float32Array(FLOATS);
@@ -18,8 +18,17 @@ const SPOT_DIR = (() => {
   return [0.5 / length, 0.866 / length, 1.1 / length];
 })();
 
+function nearestSpot(): WireSpot | undefined {
+  const { x, y } = state.camera;
+  let best: WireSpot | undefined;
+  for (const spot of hazardView().spots) {
+    if (!best || Math.hypot(spot.x - x, spot.y - y) < Math.hypot(best.x - x, best.y - y)) best = spot;
+  }
+  return best;
+}
+
 function spotIntensity(): [number, number, number, number] {
-  const { spot } = hazardView();
+  const spot = nearestSpot();
   if (!spot) return [0, 0, 1, 0];
   const focus = spot.phase === SpotPhase.Focus ? spot.progress : 0;
   const fade = spot.phase === SpotPhase.Fade ? 1 - spot.progress : 1;

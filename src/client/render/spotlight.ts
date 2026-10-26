@@ -4,7 +4,7 @@ import { vividColor } from '../color.ts';
 import { bindTexture, blend, drawQuad, gl } from '../gl/context.ts';
 import { backdrop, screenTargets } from '../gl/screen.ts';
 import { programs } from '../gl/programs.ts';
-import { state } from '../state.ts';
+import { inView, state } from '../state.ts';
 import { hazardView } from '../world/hazards.ts';
 import { shadowSteps } from './lights.ts';
 import { activeInjections } from '../world/injections.ts';
@@ -13,11 +13,20 @@ import { setScreen, setView } from './view.ts';
 
 const NEEDLE_DIRECTION = { x: 0.5, y: 0.866 };
 
+function visibleSpots(): WireSpot[] {
+  return hazardView().spots.filter((spot) => inView(spot, 1, spot.radius * 1.4));
+}
+
 export function drawSpotlight(time: number): void {
-  const { spot } = hazardView();
-  if (!spot) return;
+  const spots = visibleSpots();
+  if (!spots.length) return;
   bindTexture(0, screenTargets().cells.texture);
   blend(gl.ONE, gl.ONE);
+  for (const spot of spots) spotQuad(spot, time);
+  gl.disable(gl.BLEND);
+}
+
+function spotQuad(spot: WireSpot, time: number): void {
   setView(programs.spot)
     .int('uOccluder', 0)
     .int('uSteps', shadowSteps())
@@ -29,7 +38,6 @@ export function drawSpotlight(time: number): void {
     .float('uProgress', spot.progress)
     .float('uTime', time);
   drawQuad();
-  gl.disable(gl.BLEND);
 }
 
 interface Needle {
@@ -82,9 +90,13 @@ function strikeFluid(target: { readonly fluidColor: Rgb } | null): { fluid: Rgb;
   return { fluid: target ? target.fluidColor : [0.6, 0.7, 0.65], gift: false };
 }
 
-function strikeNeedle(): Needle | null {
-  const { spot } = hazardView();
-  if (spot?.phase !== SpotPhase.Strike) return null;
+function strikeNeedles(): Needle[] {
+  return visibleSpots()
+    .filter((spot) => spot.phase === SpotPhase.Strike)
+    .map(strikeNeedle);
+}
+
+function strikeNeedle(spot: WireSpot): Needle {
   const target = state.cells.get(spot.target) ?? null;
   const center = target ? target.center : spot;
   const offset = knifeOffset(spot, target ? target.radius : 100);
@@ -116,8 +128,7 @@ function injectionNeedles(): Needle[] {
 }
 
 export function drawNeedle(): void {
-  const strike = strikeNeedle();
-  const needles = strike ? [strike, ...injectionNeedles()] : injectionNeedles();
+  const needles = [...strikeNeedles(), ...injectionNeedles()];
   if (!needles.length) return;
   bindTexture(0, backdrop());
   blend(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

@@ -27,18 +27,24 @@ function blendBoss(a: WireBoss | null, b: WireBoss, t: number): WireBoss {
   return { ...b, chains };
 }
 
-function blendSpot(a: WireSpot | null, b: WireSpot, t: number): WireSpot {
+function blendSpot(a: WireSpot | undefined, b: WireSpot, t: number): WireSpot {
   if (!a) return b;
   return { ...b, x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), radius: lerp(a.radius, b.radius, t) };
 }
 
 export function hazardView(): HazardPacket {
-  if (!current) return { spot: null, boss: null };
+  if (!current) return { spots: [], boss: null };
   const t = Math.min(1, (performance.now() - current.at) / INTERVAL);
   const last = previous?.packet;
-  const { spot, boss } = current.packet;
+  const { spots, boss } = current.packet;
   return {
-    spot: spot ? blendSpot(last?.spot ?? null, spot, t) : null,
+    spots: spots.map((spot) =>
+      blendSpot(
+        last?.spots.find((item) => item.target === spot.target),
+        spot,
+        t,
+      ),
+    ),
     boss: boss ? blendBoss(last?.boss ?? null, boss, t) : null,
   };
 }

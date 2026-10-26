@@ -7,7 +7,7 @@ import type { Boss } from './boss.ts';
 import { Nematode } from './nematode.ts';
 import { Oligochaete } from './oligochaete.ts';
 import { Physarum } from './physarum.ts';
-import { spotWire, startPipette, updatePipette, pipetteActive } from './pipette.ts';
+import { spotWires, startPipette, startPipettes, updatePipettes, pipetteActive } from './pipette.ts';
 import { Spirostomum } from './spirostomum.ts';
 
 const FIRST_BOSS = 120;
@@ -69,7 +69,7 @@ function pickTool(): number {
 function schedulePipette(): void {
   if (pipetteActive() || clock < nextPipette) return;
   const tool = pickTool();
-  if (startPipette(tool)) announce(TOOL_TEXT[tool] ?? '', true);
+  if (startPipettes(tool)) announce(TOOL_TEXT[tool] ?? '', true);
   nextPipette = clock + between(rapid ? RAPID_PIPETTE_GAP : PIPETTE_GAP);
 }
 
@@ -77,7 +77,7 @@ export function updateHazards(dt: number): void {
   clock += dt;
   scheduleBoss();
   schedulePipette();
-  updatePipette(dt);
+  updatePipettes(dt);
   if (!boss) return;
   boss.update(dt);
   if (!boss.done()) return;
@@ -135,5 +135,5 @@ export function hazardSlowdown(cell: Cell): number {
 }
 
 export function hazardPacket(): Uint8Array {
-  return encodeHazards({ spot: spotWire(), boss: boss?.wire() ?? null });
+  return encodeHazards({ spots: spotWires(), boss: boss?.wire() ?? null });
 }
