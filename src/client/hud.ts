@@ -43,8 +43,9 @@ function refreshRosterColors(now: number): void {
 }
 
 function rankPlayers(): Ranked[] {
-  const masses = new Map<number, number>();
-  for (const cell of state.cells.values()) masses.set(cell.pid, (masses.get(cell.pid) ?? 0) + cell.mass);
+  const masses = new Map(state.masses);
+  const mine = ownCells().reduce((sum, cell) => sum + cell.mass, 0);
+  if (mine > 0) masses.set(state.me, mine);
   return [...state.roster.values()]
     .filter((player) => masses.has(player.id))
     .map((player) => ({ ...player, mass: masses.get(player.id) ?? 0 }))

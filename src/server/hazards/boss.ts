@@ -1,9 +1,10 @@
 import { clamp, type Rgb } from '../../shared/math.ts';
-import type { WireBoss } from '../../shared/protocol.ts';
+import { FoodVariety, type WireBoss } from '../../shared/protocol.ts';
 import { addFood } from '../food.ts';
 import type { Point } from '../types.ts';
 import { allMembers, world } from '../world.ts';
 import { nearestOnChain, pushOut, type Body, type Chain } from './chain.ts';
+import { foodsNear } from '../life/senses.ts';
 
 export abstract class Boss {
   protected health = 1;
@@ -44,12 +45,13 @@ export abstract class Boss {
   }
 }
 
+const REMAINS_STRIDE = 6;
+
 export function dissolveChain(chain: Chain, color: Rgb, varieties: readonly number[]): void {
   for (const [i, point] of chain.points.entries()) {
-    if (i % 2) continue;
-    for (const variety of varieties) {
-      addFood({ x: point.x + (Math.random() - 0.5) * 80, y: point.y + (Math.random() - 0.5) * 80, variety, color });
-    }
+    if (i % REMAINS_STRIDE) continue;
+    const variety = varieties[(i / REMAINS_STRIDE) % varieties.length] ?? FoodVariety.Detritus;
+    addFood({ x: point.x + (Math.random() - 0.5) * 80, y: point.y + (Math.random() - 0.5) * 80, variety, color });
   }
 }
 
@@ -66,8 +68,31 @@ export function shove(chain: Chain, velocity: { x: number; y: number }, damage: 
     if (cell.gut >= 0) continue;
     if (pushOut(chain, cell, velocity)) damage(cell.mass);
   }
-  const bodies: Body[] = [...world.foods.values(), ...world.creatures.values()];
-  for (const body of bodies) pushOut(chain, body, velocity);
+  for (const body of bodiesNear(chain)) pushOut(chain, body, velocity);
+}
+
+const BODY_SLACK = 60;
+
+function bodiesNear(chain: Chain): Set<Body> {
+  const found = new Set<Body>();
+  chain.points.forEach((point, i) => {
+    const reach = (chain.radii[i] ?? 0) + BODY_SLACK;
+    for (const food of foodsNear(point.x, point.y, reach)) found.add(food);
+  });
+  const [minX, minY, maxX, maxY] = bounds(chain);
+  for (const creature of world.creatures.values()) {
+    if (creature.x > minX && creature.x < maxX && creature.y > minY && creature.y < maxY) found.add(creature);
+  }
+  return found;
+}
+
+function bounds(chain: Chain): [number, number, number, number] {
+  const slack = Math.max(0, ...chain.radii) + BODY_SLACK;
+  let box: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const point of chain.points) {
+    box = [Math.min(box[0], point.x), Math.min(box[1], point.y), Math.max(box[2], point.x), Math.max(box[3], point.y)];
+  }
+  return [box[0] - slack, box[1] - slack, box[2] + slack, box[3] + slack];
 }
 
 export function outsideWorld(x: number, y: number, margin: number, size: number): boolean {

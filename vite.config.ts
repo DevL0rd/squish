@@ -12,6 +12,7 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
+    allowedHosts: ['test.devl0rd.com'],
     proxy: {
       '/ws': { target: 'ws://localhost:5174', ws: true },
       '/health': 'http://localhost:5174',

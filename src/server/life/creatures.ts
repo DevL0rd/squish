@@ -7,7 +7,7 @@ import type { Client, Creature } from '../types.ts';
 import { nextId, playerCenter, randomWorld, thingCount, withinRange, world } from '../world.ts';
 import { BRAINS } from './brains.ts';
 import { holdLatch, resolveContact } from './contacts.ts';
-import { buildFoodGrid, foodsNear } from './senses.ts';
+import { buildCellGrid, buildFoodGrid, foodsNear } from './senses.ts';
 import { doublingTime, spawnCreature } from './spawn.ts';
 import { Behavior, pickSpecies, speciesOf } from './species.ts';
 import { feedVirus, keepViruses } from './viruses.ts';
@@ -99,7 +99,7 @@ function graze(creature: Creature): void {
   if (!meal) return;
   world.foods.delete(meal.id);
   creature.energy = Math.min(1.6, creature.energy + 0.12);
-  creature.radius = Math.min(meta.size * meta.spread[1] * 1.2, creature.radius + 0.3);
+  creature.radius = Math.min(creature.baseRadius * 1.2, creature.radius + 0.3);
   creature.divideAt -= 3000;
 }
 
@@ -114,6 +114,7 @@ function live(creature: Creature, dt: number, counts: Map<number, number>): bool
 
 export function updateCreatures(dt: number): void {
   buildFoodGrid();
+  buildCellGrid();
   const counts = census();
   for (const creature of world.creatures.values()) {
     if (live(creature, dt, counts)) world.creatures.delete(creature.id);

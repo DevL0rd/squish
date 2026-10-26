@@ -98,6 +98,11 @@ export const ATTACKS = [
   'Lysosome bomb',
 ] as const;
 
+export const SkyTool = { Needle: 0, Holder: 1, Knife: 2 } as const;
+
+export const BOSS_SCALE = 4;
+export const BOSS_REACH = 2;
+
 export const BOSS_NAMES = ['Nematode', 'Spirostomum', 'Bristle worm', 'Slime mold'] as const;
 
 export interface AdminCatalog {
@@ -105,13 +110,15 @@ export interface AdminCatalog {
 }
 
 export type ClientMessage =
-  | { readonly t: 'join'; readonly name: string; readonly hue: number }
+  | { readonly t: 'join'; readonly name: string; readonly hue: number; readonly key: string }
   | { readonly t: 'respawn' }
   | { readonly t: 'view'; readonly x: number; readonly y: number }
   | { readonly t: 'input'; readonly x: number; readonly y: number }
   | { readonly t: 'split' }
   | { readonly t: 'eject' }
   | { readonly t: 'boost' }
+  | { readonly t: 'probe'; readonly at: number }
+  | { readonly t: 'pinch'; readonly cell: number; readonly x: number; readonly y: number; readonly share: number }
   | { readonly t: 'admin'; readonly action: number; readonly arg: number };
 
 export type ServerMessage =
@@ -129,6 +136,17 @@ export type ServerMessage =
   | { readonly t: 'respawned' }
   | { readonly t: 'boost'; readonly charge: number }
   | { readonly t: 'progress'; readonly level: number; readonly defense: number }
+  | {
+      readonly t: 'stats';
+      readonly tickMs: number;
+      readonly tickMax: number;
+      readonly bytesPerSecond: number;
+      readonly clients: number;
+      readonly food: number;
+      readonly creatures: number;
+    }
+  | { readonly t: 'echo'; readonly at: number }
+  | { readonly t: 'board'; readonly masses: readonly (readonly [number, number])[] }
   | { readonly t: 'full' }
   | { readonly t: 'announce'; readonly text: string; readonly danger: boolean }
   | { readonly t: 'obstacles'; readonly items: readonly ObstacleShape[] }
@@ -205,6 +223,8 @@ export interface WireSpot {
   readonly phase: number;
   readonly progress: number;
   readonly target: number;
+  readonly tool: number;
+  readonly angle: number;
 }
 
 export interface WireJoint {

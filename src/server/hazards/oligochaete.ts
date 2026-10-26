@@ -1,5 +1,5 @@
 import { clamp, hslToRgb, WORLD } from '../../shared/math.ts';
-import { BossKind, FoodVariety, type WireBoss } from '../../shared/protocol.ts';
+import { BOSS_REACH, BOSS_SCALE, BossKind, FoodVariety, type WireBoss } from '../../shared/protocol.ts';
 import { toBytes, world } from '../world.ts';
 import { Boss, dissolveChain, joints, outsideWorld, shove } from './boss.ts';
 import { follow, makeChain, type Chain } from './chain.ts';
@@ -11,9 +11,9 @@ const SPEED = 95;
 const FLEE_BOOST = 2;
 const FLEE_TIME = 3;
 const TRAIL_LIFE = 26;
-const TRAIL_RADIUS = 90;
+const TRAIL_RADIUS = 90 * BOSS_REACH;
 const TRAIL_SLOW = 0.42;
-const MOUTH = 150;
+const MOUTH = 150 * BOSS_REACH;
 const LIFETIME = 170;
 const BACTERIA = new Set([4, 5]);
 
@@ -25,7 +25,7 @@ interface Slime {
 
 function profile(u: number): number {
   const taper = Math.min(1, u * 9, (1 - u) * 5);
-  return 18 + 34 * taper + 8 * Math.sin(u * 120) ** 2;
+  return (18 + 34 * taper + 8 * Math.sin(u * 120) ** 2) * BOSS_SCALE;
 }
 
 export class Oligochaete extends Boss {
@@ -125,7 +125,7 @@ export class Oligochaete extends Boss {
     const slime = this.trail.map((point) => ({
       x: point.x,
       y: point.y,
-      r: clamp(TRAIL_RADIUS * (1 - (this.time - point.born) / TRAIL_LIFE), 0, 255),
+      r: Math.max(0, TRAIL_RADIUS * (1 - (this.time - point.born) / TRAIL_LIFE)),
     }));
     return {
       kind: BossKind.Oligochaete,

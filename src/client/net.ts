@@ -31,6 +31,36 @@ export interface NetHandlers {
   readonly onDrift: (items: readonly ObstacleDrift[]) => void;
   readonly onHazards: (packet: HazardPacket) => void;
   readonly onAnnounce: (text: string, danger: boolean) => void;
+  readonly onStats: (stats: ServerStats) => void;
+  readonly onEcho: (at: number) => void;
+  readonly onBoard: (masses: readonly (readonly [number, number])[]) => void;
+}
+
+const KEY_STORE = 'squish.adminKey';
+
+function adminKey(): string {
+  try {
+    const url = new URL(location.href);
+    const given = url.searchParams.get('admin');
+    if (given !== null) {
+      localStorage.setItem(KEY_STORE, given);
+      url.searchParams.delete('admin');
+      history.replaceState(null, '', url);
+    }
+    return localStorage.getItem(KEY_STORE) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export type ServerStats = Extract<ServerMessage, { t: 'stats' }>;
+
+type WorldMessage = Extract<ServerMessage, { t: 'obstacles' | 'drift' | 'announce' | 'stats' | 'echo' | 'board' }>;
+
+const WORLD_MESSAGES = new Set<ServerMessage['t']>(['obstacles', 'drift', 'announce', 'stats', 'echo', 'board']);
+
+function isWorldMessage(message: ServerMessage): message is WorldMessage {
+  return WORLD_MESSAGES.has(message.t);
 }
 
 interface Identity {
@@ -73,7 +103,7 @@ export class Net {
     this.retry = 0;
     this.handlers.onOpen();
     if ((this.pendingJoin || this.everJoined) && this.identity) {
-      this.send({ t: 'join', name: this.identity.name, hue: this.identity.hue });
+      this.send({ t: 'join', name: this.identity.name, hue: this.identity.hue, key: adminKey() });
     }
   }
 
@@ -112,6 +142,10 @@ export class Net {
   }
 
   private forward(message: Exclude<ServerMessage, { t: 'welcome' | 'full' }>): void {
+    if (isWorldMessage(message)) {
+      this.forwardWorld(message);
+      return;
+    }
     switch (message.t) {
       case 'roster':
         this.handlers.onRoster(message.players);
@@ -128,6 +162,11 @@ export class Net {
       case 'progress':
         this.handlers.onProgress(message.level, message.defense);
         return;
+    }
+  }
+
+  private forwardWorld(message: WorldMessage): void {
+    switch (message.t) {
       case 'obstacles':
         this.handlers.onObstacles(message.items);
         return;
@@ -136,6 +175,15 @@ export class Net {
         return;
       case 'announce':
         this.handlers.onAnnounce(message.text, message.danger);
+        return;
+      case 'stats':
+        this.handlers.onStats(message);
+        return;
+      case 'echo':
+        this.handlers.onEcho(message.at);
+        return;
+      case 'board':
+        this.handlers.onBoard(message.masses);
         return;
     }
   }
@@ -156,7 +204,7 @@ export class Net {
   join(name: string, hue: number): void {
     this.identity = { name, hue };
     this.pendingJoin = true;
-    this.send({ t: 'join', name, hue });
+    this.send({ t: 'join', name, hue, key: adminKey() });
   }
 
   input(x: number, y: number): void {
@@ -165,6 +213,10 @@ export class Net {
 
   view(x: number, y: number): void {
     this.send({ t: 'view', x: Math.round(x), y: Math.round(y) });
+  }
+
+  pinch(cell: number, x: number, y: number, share: number): void {
+    this.send({ t: 'pinch', cell, x, y, share });
   }
 
   split(): void {
@@ -181,6 +233,10 @@ export class Net {
 
   boost(): void {
     this.send({ t: 'boost' });
+  }
+
+  probe(): void {
+    this.send({ t: 'probe', at: performance.now() });
   }
 
   respawn(): void {

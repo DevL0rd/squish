@@ -56,9 +56,9 @@ npm run dev
 - Each cell has its own small liquid simulation; the cell body takes its colour from that fluid.
 - Food preserves its size when it enters a cell.
 - Cells that press together with compatible sizes fuse; their fluids and food merge.
-- Growing levels you up (mass 200, 600, 1400, 3000): a needle injects new DNA and upgrades your attack from spit to trichocyst volley, toxicyst dart, osmotic pulse and lysosome bomb. Attacks cost mass, split rivals and wound bosses.
+- Growing levels you up (mass 2500, 5000, 7500, 10000): a needle injects new DNA and upgrades your attack from spit to trichocyst volley, toxicyst dart, osmotic pulse and lysosome bomb. Attacks cost mass, split rivals and wound bosses.
 - Eating small creatures charges up to two boosts; eating diatoms, rotifers, Stentor and tardigrades gives a fading shield.
 - Random events: four giant boss organisms with HP and a micropipette spotlight that drains or injects mass.
 - Bots have personalities (hunter, grazer, coward, trickster, brawler, opportunist) and use the same mechanics as players.
-- Admin panel: with `npm run dev` the server runs with `--admin`, and a player named DevL0rd gets an Admin button (or the backquote key) to force events, spawn things and test.
+- Admin panel: with `npm run dev` the server runs with `--admin`, and a player named DevL0rd on a direct local connection gets an Admin button (or the backquote key). Remote devices need the secret `SQUISH_ADMIN_KEY` from `.env`: open the game once with `?admin=<key>`.
 - Background music: a 6 minute seamless Opus loop in `public/music`.

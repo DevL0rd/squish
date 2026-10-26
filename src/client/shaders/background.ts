@@ -11,11 +11,6 @@ uniform vec2 uOrigin;
 uniform float uSpan;
 uniform sampler2D uDye;
 uniform sampler2D uVelocity;
-uniform int uLightCount;
-uniform vec2 uLightPos[16];
-uniform vec3 uLightColor[16];
-uniform float uLightRadius[16];
-uniform float uLightIntensity[16];
 ${noise}
 
 void main() {
@@ -50,12 +45,5 @@ void main() {
   col += vec3(0.02, 0.05, 0.045) * density * 0.08;
   float glow = exp(-dot(vUv - vec2(0.72, 0.58), vUv - vec2(0.72, 0.58)) * 4.5);
   col += vec3(0.008, 0.02, 0.018) * glow;
-  for (int i = 0; i < 16; i++) {
-    if (i >= uLightCount) break;
-    vec2 delta = world - uLightPos[i];
-    float radius = max(uLightRadius[i], 1.0);
-    float falloff = exp(-dot(delta, delta) / (radius * radius) * 1.7);
-    col += uLightColor[i] * falloff * uLightIntensity[i] * 0.075;
-  }
   outColor = vec4(col, 1.0);
 }`;

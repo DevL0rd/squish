@@ -1,4 +1,4 @@
-import { BossKind, type WireBoss, type WireJoint } from '../../shared/protocol.ts';
+import { BOSS_SCALE, BossKind, type WireBoss, type WireJoint } from '../../shared/protocol.ts';
 import { bindTexture, blend, gl } from '../gl/context.ts';
 import { backdrop } from '../gl/screen.ts';
 import { InstanceBatch } from '../gl/instances.ts';
@@ -56,6 +56,7 @@ export function drawBoss(time: number): void {
   bindTexture(0, backdrop());
   setScreen(setView(programs.boss))
     .int('uBackground', 0)
+    .float('uScale', BOSS_SCALE)
     .float('uTime', time)
     .float('uState', boss.state)
     .float('uProgress', boss.progress);

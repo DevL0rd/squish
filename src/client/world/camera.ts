@@ -6,6 +6,7 @@ import type { CellVisual } from '../cell/cell.ts';
 import { ownCells, playerCenter, state, WORLD_CENTER } from '../state.ts';
 
 const TREMOR = { joined: 0.32, watching: 0.75 };
+const FULL_ZOOM_MASS = 10000;
 
 export interface Bounds {
   readonly left: number;
@@ -38,7 +39,7 @@ export function viewBounds(margin: number): Bounds {
 
 function followPlayer(center: { x: number; y: number; mass: number }): Framing {
   const baseWidth = Math.max(390, Math.min(2100, canvas.clientWidth * 1.12));
-  const zoom = Math.pow(Math.max(center.mass / 55, 1), 0.42);
+  const zoom = 1 + Math.sqrt(Math.min(1, center.mass / FULL_ZOOM_MASS));
   let vx = 0;
   let vy = 0;
   for (const cell of ownCells()) {

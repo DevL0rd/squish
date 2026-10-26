@@ -1,6 +1,6 @@
 import { clamp, radiusFor, WORLD } from '../shared/math.ts';
 import { AdminAction, FoodVariety, INFECTIONS, type AdminCatalog } from '../shared/protocol.ts';
-import { ADMIN, ADMIN_NAME } from './config.ts';
+import { ADMIN, ADMIN_KEY, ADMIN_NAME } from './config.ts';
 import { addFood } from './food.ts';
 import { bossPoint, endBoss, forceBoss, forcePipette, toggleRapid } from './hazards/events.ts';
 import { infect } from './infection.ts';
@@ -11,11 +11,12 @@ import { sendJson } from './transport.ts';
 
 const FOOD_BURST = 8;
 const FOOD_SCATTER = 120;
-const MASS_GIFT = 250;
+const MASS_GIFT = 1000;
 const VARIETIES = Object.values(FoodVariety);
 
-export function isAdmin(name: string): boolean {
-  return ADMIN && name === ADMIN_NAME;
+export function isAdmin(name: string, local: boolean, key: unknown): boolean {
+  if (!ADMIN || name !== ADMIN_NAME) return false;
+  return local || (ADMIN_KEY.length > 0 && key === ADMIN_KEY);
 }
 
 export function adminCatalog(): AdminCatalog {
@@ -75,7 +76,7 @@ function infectSelf(player: Player, type: number): void {
 function hazardAction(player: Player, action: number, arg: number): void {
   if (action === AdminAction.Boss) forceBoss(arg);
   else if (action === AdminAction.EndBoss) endBoss();
-  else if (action === AdminAction.Pipette) forcePipette(player);
+  else if (action === AdminAction.Pipette) forcePipette(player, arg);
   else if (action === AdminAction.Rapid) tell(player, toggleRapid() ? 'Rapid events on' : 'Rapid events off');
 }
 

@@ -59,6 +59,7 @@ export const state = {
   me: 0,
   joined: false,
   joinedAt: 0,
+  masses: new Map<number, number>(),
   dead: false,
   roster: new Map<number, RosterEntry>(),
   cells: new Map<number, CellVisual>(),

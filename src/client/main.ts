@@ -20,6 +20,9 @@ import { drawLabels, updateOccupancy, updateUI } from './hud.ts';
 import { bindInput, steerWithJoystick, stopJoystick } from './input.ts';
 import { Net } from './net.ts';
 import { enableAdmin } from './ui/admin.ts';
+import { receiveEcho, receiveStats, updatePerfHud } from './ui/perf-hud.ts';
+import { beginFrame, endFrame, gpuStage, stage } from './perf.ts';
+import { nextFrame } from './frame-loop.ts';
 import { showBoost } from './ui/boost.ts';
 import { showProgress } from './ui/progress.ts';
 import { updateEventBanner } from './ui/event-banner.ts';
@@ -30,7 +33,7 @@ import { playerCenter, state } from './state.ts';
 import { resetDecor } from './world/decor.ts';
 import { receiveHazards } from './world/hazards.ts';
 import { receiveDrift, receiveShapes } from './world/obstacles.ts';
-import { updateSimulation } from './world/simulation.ts';
+import { takePinches, updateSimulation } from './world/simulation.ts';
 import { bindInterfaceSettings } from './ui/apply.ts';
 import { clearEffects, updateEffects } from './ui/effects.ts';
 import { resetMeals, updateMeals } from './ui/meals.ts';
@@ -68,6 +71,7 @@ const net = new Net({
     resetDecor();
     startAmbience();
     enableAdmin(message.admin, net);
+    admin = message.admin !== null;
     showStatus('you are in the suspension', 1600);
   },
   onRoster: (players) => {
@@ -94,6 +98,11 @@ const net = new Net({
     showStatus('membrane compromised', 2200);
   },
   onBoost: showBoost,
+  onStats: receiveStats,
+  onEcho: receiveEcho,
+  onBoard: (masses) => {
+    state.masses = new Map(masses);
+  },
   onProgress: showProgress,
   onRespawned: () => {
     state.dead = false;
@@ -143,6 +152,7 @@ function bindForms(): void {
 }
 
 const timers = { input: 0, view: 0, frame: performance.now() };
+let admin = false;
 
 function sendControls(now: number): void {
   if (state.joined && !state.dead && now - timers.input > INPUT_INTERVAL && playerCenter()) {
@@ -155,22 +165,38 @@ function sendControls(now: number): void {
   }
 }
 
-function loop(): void {
-  const now = performance.now();
-  const dt = Math.min(0.05, (now - timers.frame) / 1000 || 0.016);
-  timers.frame = now;
-  state.time += dt;
-  updateSimulation(dt);
-  steerWithJoystick();
-  sendControls(performance.now());
-  renderFrame(dt);
-  drawLabels();
+function updateHud(dt: number): void {
   updateUI();
   updateEventBanner();
   updateCreatureChatter();
   updateMeals(dt);
   updateEffects();
-  requestAnimationFrame(loop);
+}
+
+function loop(): void {
+  beginFrame();
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - timers.frame) / 1000 || 0.016);
+  timers.frame = now;
+  state.time += dt;
+  stage('simulate', () => {
+    updateSimulation(dt);
+  });
+  steerWithJoystick();
+  sendControls(performance.now());
+  for (const pinch of takePinches()) net.pinch(pinch.cell, pinch.x, pinch.y, pinch.share);
+  stage('render', () => {
+    gpuStage(() => {
+      renderFrame(dt);
+    });
+  });
+  stage('labels', drawLabels);
+  stage('hud', () => {
+    updateHud(dt);
+  });
+  updatePerfHud(net, admin);
+  endFrame();
+  nextFrame(loop);
 }
 
 window.addEventListener('resize', resize);
@@ -185,7 +211,7 @@ window.addEventListener('keydown', startAmbience, { once: true });
 bindInterfaceSettings();
 resetDecor();
 seedFluid();
-requestAnimationFrame(loop);
+nextFrame(loop);
 function finishBoot(): void {
   boot.classList.add('done');
 }

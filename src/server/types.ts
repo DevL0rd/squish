@@ -21,6 +21,7 @@ export interface Cell extends Point {
   pigment: Rgb;
   gut: number;
   wounds: number;
+  heldUntil: number;
 }
 
 export interface Player {
@@ -62,6 +63,8 @@ export interface Food extends Point {
   readonly ejecta: boolean;
   readonly owner: number;
   readonly born: number;
+  flowX: number;
+  flowY: number;
 }
 
 export interface Creature extends Point {
@@ -86,6 +89,7 @@ export interface Creature extends Point {
 
 export interface Client {
   readonly ws: WebSocket;
+  readonly local: boolean;
   player: Player | null;
   view: Point;
 }

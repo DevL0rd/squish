@@ -27,10 +27,13 @@ function addPlanes(planes: Map<CellVisual, Plane[]>, a: CellVisual, b: CellVisua
 
 export function contactPlanes(cells: readonly CellVisual[], ignored: ReadonlySet<string>): Map<CellVisual, Plane[]> {
   const planes = new Map(cells.map((cell) => [cell, [] as Plane[]]));
-  cells.forEach((a, i) => {
-    for (let j = i + 1; j < cells.length; j += 1) {
-      const b = cells[j];
-      if (b && !ignored.has(pairKey(a.id, b.id))) addPlanes(planes, a, b);
+  const sorted = [...cells].sort((a, b) => a.x - a.radius * REACH - (b.x - b.radius * REACH));
+  sorted.forEach((a, i) => {
+    const reach = a.x + a.radius * REACH;
+    for (let j = i + 1; j < sorted.length; j += 1) {
+      const b = sorted[j];
+      if (!b || b.x - b.radius * REACH > reach) break;
+      if (!ignored.has(pairKey(a.id, b.id))) addPlanes(planes, a, b);
     }
   });
   return planes;

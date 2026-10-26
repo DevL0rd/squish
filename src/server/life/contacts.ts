@@ -2,17 +2,19 @@ import { radiusFor } from '../../shared/math.ts';
 import { EventKind, Infection, CreatureState } from '../../shared/protocol.ts';
 import { burstCell } from '../actions.ts';
 import { chargeBoost } from '../boost.ts';
+import { shoveApart } from '../physics.ts';
 import { armorFrom } from '../progress.ts';
 import { infect, randomPhage } from '../infection.ts';
 import { ingest } from '../pigment.ts';
 import type { Cell, Creature } from '../types.ts';
 import { emit, withinRange, world } from '../world.ts';
-import { findCell, nearestCell } from './senses.ts';
+import { cellsNear, findCell, nearestCell } from './senses.ts';
 import { Behavior, speciesOf } from './species.ts';
 
 const LATCH_TIME = 1000;
 const EDIBLE_RATIO = 1.35;
 const VIRUS_MASS = 0.5;
+const CREATURE_VALUE = 0.7;
 
 function latchOn(creature: Creature): boolean {
   const host = nearestCell(creature, 0);
@@ -85,20 +87,24 @@ function touchVirus(creature: Creature): boolean {
 }
 
 function swallowedBy(creature: Creature): Cell | undefined {
-  for (const player of world.players.values()) {
-    const cell = player.cells.find(
-      (candidate) =>
-        candidate.radius >= creature.radius * EDIBLE_RATIO && withinRange(creature, candidate, candidate.radius * 0.96),
-    );
-    if (cell) return cell;
-  }
-  return undefined;
+  const fits = (cell: Cell): boolean =>
+    cell.radius >= creature.radius * EDIBLE_RATIO && withinRange(creature, cell, cell.radius * 0.96);
+  return cellsNear(creature.x, creature.y, 0).find((member) => fits(member.cell))?.cell;
+}
+
+function bump(creature: Creature): void {
+  const near = nearestCell(creature, creature.radius);
+  if (!near || near.cell.radius >= creature.radius * EDIBLE_RATIO) return;
+  shoveApart(near.cell, near.cell.mass, creature, (creature.radius / 5.2) ** 2);
 }
 
 function eaten(creature: Creature): boolean {
   const predator = swallowedBy(creature);
-  if (!predator) return false;
-  const base = creature.radius * 0.25;
+  if (!predator) {
+    bump(creature);
+    return false;
+  }
+  const base = (creature.radius / 5.2) ** 2 * CREATURE_VALUE;
   const gained = ingest(predator, creature.color, base);
   predator.mass += gained;
   predator.digesting += gained * 2.4;

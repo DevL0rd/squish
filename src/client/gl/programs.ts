@@ -26,6 +26,7 @@ import { needleFragment, spotFragment } from '../shaders/spotlight.ts';
 import { obstacleFragment, obstacleVertex } from '../shaders/obstacle.ts';
 import { organelleFragment, organelleVertex } from '../shaders/organelle.ts';
 import { streakFragment, streakVertex } from '../shaders/streak.ts';
+import { lightsFragment } from '../shaders/lights.ts';
 import { ShaderProgram } from './program.ts';
 
 export const programs = {
@@ -48,6 +49,7 @@ export const programs = {
   spot: new ShaderProgram(cellVertex, spotFragment),
   needle: new ShaderProgram(cellVertex, needleFragment),
   streak: new ShaderProgram(streakVertex, streakFragment),
+  lights: new ShaderProgram(cellVertex, lightsFragment),
   bright: new ShaderProgram(quadVertex, brightPass),
   field: new ShaderProgram(quadVertex, fieldFragment),
   blur: new ShaderProgram(quadVertex, blurPass),

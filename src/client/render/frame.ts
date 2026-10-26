@@ -7,12 +7,13 @@ import { state } from '../state.ts';
 import { drawCellBodies, drawOrganelles } from './cells.ts';
 import { drawObstacles } from './obstacles.ts';
 import { drawBoss } from './boss.ts';
-import { drawNeedle } from './spotlight.ts';
+import { drawNeedle, drawSpotlight } from './spotlight.ts';
+import { drawLights } from './lights.ts';
 import { drawStreaks } from './streaks.ts';
 import { stepFluid } from './fluid.ts';
 import { followCamera } from './fluid-window.ts';
 import { drawBase } from './scene.ts';
-import { drawBubbles, drawDebris } from './sprites.ts';
+import { drawBubbles, drawCreatures, drawDebris, drawFood } from './sprites.ts';
 
 const SIM_STEP = 1 / 30;
 let simAccumulator = 0;
@@ -24,6 +25,9 @@ function drawCellLayer(time: number): void {
   gl.clear(gl.COLOR_BUFFER_BIT);
   drawBubbles(false);
   drawObstacles();
+  drawCreatures(time);
+  drawFood(time);
+  drawDebris(false, time);
   drawCellBodies(time);
   drawOrganelles(time);
 }
@@ -107,6 +111,8 @@ export function renderFrame(dt: number): void {
   drawBase(state.time);
   drawCellLayer(state.time);
   compositeCells();
+  drawLights();
+  drawSpotlight(state.time);
   copyScene();
   drawOverlays(state.time);
   drawBloom();

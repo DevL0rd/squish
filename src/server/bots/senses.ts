@@ -2,6 +2,7 @@ import { cloudZones } from '../combat/clouds.ts';
 import { bossClosest } from '../hazards/events.ts';
 import { spotWire } from '../hazards/pipette.ts';
 import { Behavior, speciesOf } from '../life/species.ts';
+import { cellsNear, foodsNear } from '../life/senses.ts';
 import { affinity } from '../pigment.ts';
 import type { Cell, Creature, Food, Player, Point } from '../types.ts';
 import { world } from '../world.ts';
@@ -51,13 +52,10 @@ function rival(player: Player, cell: Cell, main: Cell): Rival {
 function rivals(self: Player, main: Cell): { threats: Rival[]; prey: Rival[] } {
   const threats: Rival[] = [];
   const prey: Rival[] = [];
-  for (const player of world.players.values()) {
-    if (player === self) continue;
-    for (const cell of player.cells) {
-      if (cell.gut >= 0 || distance(cell, main) > SIGHT) continue;
-      if (cell.mass > main.mass * THREAT_RATIO) threats.push(rival(player, cell, main));
-      else if (main.mass > cell.mass * PREY_RATIO) prey.push(rival(player, cell, main));
-    }
+  for (const { player, cell } of cellsNear(main.x, main.y, SIGHT)) {
+    if (player === self || cell.gut >= 0 || distance(cell, main) > SIGHT) continue;
+    if (cell.mass > main.mass * THREAT_RATIO) threats.push(rival(player, cell, main));
+    else if (main.mass > cell.mass * PREY_RATIO) prey.push(rival(player, cell, main));
   }
   return { threats, prey };
 }
@@ -83,7 +81,7 @@ export function armored(creature: Creature): boolean {
 function bestFood(self: Player, main: Cell): Food | null {
   let best: Food | null = null;
   let bestScore = 0;
-  for (const food of world.foods.values()) {
+  for (const food of foodsNear(main.x, main.y, FOOD_SIGHT)) {
     if (food.ejecta && food.owner === self.id) continue;
     const gap = distance(food, main);
     if (gap > FOOD_SIGHT || main.radius < food.radius * 1.35) continue;

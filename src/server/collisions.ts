@@ -120,13 +120,19 @@ function applyFusions(pairs: readonly Pair[]): void {
   }
 }
 
+function left(member: Member): number {
+  return member.cell.x - member.cell.radius;
+}
+
 export function resolveCells(): void {
-  const members = allMembers();
+  const members = allMembers().sort((a, b) => left(a) - left(b));
   const pairs: Pair[] = [];
   members.forEach((a, i) => {
+    const reach = a.cell.x + a.cell.radius;
     for (let j = i + 1; j < members.length; j += 1) {
       const b = members[j];
-      const pair = b ? collide(a, b) : null;
+      if (!b || left(b) > reach) break;
+      const pair = collide(a, b);
       if (pair) pairs.push(pair);
     }
   });

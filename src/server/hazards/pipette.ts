@@ -1,18 +1,15 @@
-import { hslToRgb, radiusFor } from '../../shared/math.ts';
-import { EventKind, SpotPhase, type WireSpot } from '../../shared/protocol.ts';
+import { SkyTool, SpotPhase, type WireSpot } from '../../shared/protocol.ts';
+import { STRIKE_TIMES, strikeWith } from './tools.ts';
 import type { Cell, Player } from '../types.ts';
-import { biggestCell, emit, ownerOf, toBytes, world } from '../world.ts';
+import { biggestCell, world } from '../world.ts';
 
 const ROAM_RADIUS = 280;
 const FOCUS_RADIUS = 170;
 const ROAM_SPEED = 470;
 const LOCK_TIME = 1.8;
 const FOCUS_TIME = 1.1;
-const STRIKE_TIME = 1.2;
 const FADE_TIME = 2;
 const LIFETIME = 40;
-const DRAIN = 0.6;
-const GIFT_CHANCE = 0.12;
 
 interface Spot {
   x: number;
@@ -25,18 +22,18 @@ interface Spot {
   lock: number;
   age: number;
   target: number;
+  readonly tool: number;
+  readonly angle: number;
 }
 
 let spot: Spot | null = null;
 
 function pickTarget(): Player | undefined {
   const candidates = [...world.players.values()].filter((player) => player.cells.length);
-  const humans = candidates.filter((player) => !player.bot);
-  const pool = humans.length && Math.random() < 0.65 ? humans : candidates;
-  return pool[Math.floor(Math.random() * pool.length)];
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
-export function startPipette(forced?: Player): boolean {
+export function startPipette(tool: number, forced?: Player): boolean {
   const target = biggestCell(forced ?? pickTarget());
   if (!target) return false;
   const angle = Math.random() * Math.PI * 2;
@@ -51,6 +48,8 @@ export function startPipette(forced?: Player): boolean {
     lock: 0,
     age: 0,
     target: target.id,
+    tool,
+    angle: Math.random() * Math.PI,
   };
   return true;
 }
@@ -85,22 +84,7 @@ function chase(current: Spot, cell: Cell, dt: number): void {
 }
 
 function strike(current: Spot, cell: Cell): void {
-  const gift = Math.random() < GIFT_CHANCE;
-  const before = cell.mass;
-  const color = gift ? toBytes(hslToRgb(Math.random() * 360, 0.8, 0.55)) : cell.pigment;
-  cell.mass = gift ? before * (1 + DRAIN) : Math.max(10, before * (1 - DRAIN));
-  cell.radius = radiusFor(cell.mass);
-  if (gift) cell.pigment = color;
-  emit({
-    kind: EventKind.Pipette,
-    cellId: cell.id,
-    predatorId: ownerOf(cell)?.id ?? 0,
-    x: current.x,
-    y: current.y,
-    color,
-    amount: Math.abs(cell.mass - before),
-    bonus: gift ? 1 : 0,
-  });
+  strikeWith(current.tool, cell, current);
   enter(current, SpotPhase.Strike);
 }
 
@@ -114,11 +98,20 @@ function focus(current: Spot, cell: Cell, inside: boolean): void {
   else if (current.phaseTime >= FOCUS_TIME) strike(current, cell);
 }
 
+function strikeTime(current: Spot): number {
+  return STRIKE_TIMES[current.tool] ?? 1;
+}
+
+function release(current: Spot, cell: Cell): void {
+  cell.heldUntil = 0;
+  enter(current, SpotPhase.Fade);
+}
+
 function advance(current: Spot, cell: Cell): void {
   const inside = Math.hypot(cell.x - current.x, cell.y - current.y) < current.radius;
   if (current.phase === SpotPhase.Roam) roam(current, inside);
   else if (current.phase === SpotPhase.Focus) focus(current, cell, inside);
-  else if (current.phase === SpotPhase.Strike && current.phaseTime >= STRIKE_TIME) enter(current, SpotPhase.Fade);
+  else if (current.phase === SpotPhase.Strike && current.phaseTime >= strikeTime(current)) release(current, cell);
 }
 
 export function updatePipette(dt: number): void {
@@ -137,6 +130,7 @@ export function updatePipette(dt: number): void {
     return;
   }
   if (current.phase !== SpotPhase.Strike) chase(current, cell, dt);
+  else if (current.tool === SkyTool.Holder) Object.assign(current, { x: cell.x, y: cell.y });
   const goal = current.phase === SpotPhase.Focus ? FOCUS_RADIUS : ROAM_RADIUS;
   current.radius += (goal - current.radius) * Math.min(1, dt * 2);
   advance(current, cell);
@@ -147,7 +141,7 @@ export function spotWire(): WireSpot | null {
   const durations: Readonly<Record<number, number>> = {
     [SpotPhase.Roam]: LOCK_TIME,
     [SpotPhase.Focus]: FOCUS_TIME,
-    [SpotPhase.Strike]: STRIKE_TIME,
+    [SpotPhase.Strike]: strikeTime(spot),
     [SpotPhase.Fade]: FADE_TIME,
   };
   const length = durations[spot.phase] ?? 1;
@@ -159,5 +153,7 @@ export function spotWire(): WireSpot | null {
     phase: spot.phase,
     progress: Math.min(1, elapsed / length),
     target: spot.target,
+    tool: spot.tool,
+    angle: spot.angle,
   };
 }

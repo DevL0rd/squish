@@ -1,4 +1,4 @@
-import { AdminAction, BOSS_NAMES, FoodVariety, INFECTIONS, type AdminCatalog } from '../../shared/protocol.ts';
+import { AdminAction, BOSS_NAMES, SkyTool, FoodVariety, INFECTIONS, type AdminCatalog } from '../../shared/protocol.ts';
 import { adminOpen, adminPanel } from '../dom.ts';
 import type { Net } from '../net.ts';
 
@@ -21,7 +21,9 @@ function groups(catalog: AdminCatalog): readonly Group[] {
         ...BOSS_NAMES.map((label, arg) => ({ label, action: AdminAction.Boss, arg })),
         { label: 'Go to boss', action: AdminAction.Visit },
         { label: 'End boss', action: AdminAction.EndBoss },
-        { label: 'Pipette on me', action: AdminAction.Pipette },
+        { label: 'Pipette on me', action: AdminAction.Pipette, arg: SkyTool.Needle },
+        { label: 'Holder on me', action: AdminAction.Pipette, arg: SkyTool.Holder },
+        { label: 'Knife on me', action: AdminAction.Pipette, arg: SkyTool.Knife },
         { label: 'Rapid events', action: AdminAction.Rapid },
       ],
     },
@@ -36,7 +38,7 @@ function groups(catalog: AdminCatalog): readonly Group[] {
     {
       title: 'Me',
       commands: [
-        { label: '+250 mass', action: AdminAction.Mass },
+        { label: '+1000 mass', action: AdminAction.Mass },
         { label: 'Teleport to cursor (T)', action: AdminAction.Teleport },
         ...INFECTIONS.map((item, arg) => ({
           label: item.label.replace('Phage injection: ', ''),

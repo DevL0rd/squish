@@ -39,9 +39,14 @@ function snapshotWith(socket: WebSocket, playerId: () => number): Promise<void> 
 await test('server reports health and accepts a player', async () => {
   const { port, stop } = await startServer();
   try {
-    const health = (await (await fetch(`http://localhost:${port}/health`)).json()) as { ok: boolean; bots: number };
+    const health = (await (await fetch(`http://localhost:${port}/health`)).json()) as {
+      ok: boolean;
+      bots: number;
+      players: number;
+    };
     assert.equal(health.ok, true);
-    assert.equal(health.bots, 12);
+    assert.ok(health.bots > 0);
+    assert.equal(health.bots, health.players);
     const socket = new WebSocket(`ws://localhost:${port}/ws`);
     socket.binaryType = 'arraybuffer';
     await once(socket, 'open');

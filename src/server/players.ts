@@ -40,6 +40,7 @@ export function makeCell(options: CellOptions): Cell {
     pigment: options.pigment ?? NEUTRAL_PIGMENT,
     gut: -1,
     wounds: 0,
+    heldUntil: 0,
   };
 }
 

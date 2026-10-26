@@ -6,7 +6,7 @@ type Control =
   | { readonly kind: 'switch'; readonly key: KeysOf<boolean>; readonly label: string; readonly hint?: string }
   | {
       readonly kind: 'choice';
-      readonly key: 'quality' | 'joystick';
+      readonly key: 'quality' | 'joystick' | 'frameLimit';
       readonly label: string;
       readonly options: readonly string[];
       readonly hint?: string;
@@ -41,6 +41,14 @@ const SECTIONS: readonly Section[] = [
         options: ['high', 'balanced', 'low'],
         hint: 'fluid detail applies after reload',
       },
+      { kind: 'switch', key: 'vsync', label: 'V-sync', hint: 'off renders as fast as possible' },
+      {
+        kind: 'choice',
+        key: 'frameLimit',
+        label: 'Frame limit',
+        options: ['off', '30', '60', '120', '144'],
+      },
+      { kind: 'switch', key: 'fps', label: 'FPS counter' },
       { kind: 'switch', key: 'bloom', label: 'Bloom glow' },
       { kind: 'switch', key: 'grain', label: 'Film grain' },
       { kind: 'switch', key: 'shake', label: 'Screen shake' },

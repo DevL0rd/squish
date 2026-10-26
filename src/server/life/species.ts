@@ -55,8 +55,8 @@ export const SPECIES: readonly Species[] = [
   species('euglena', 'flagellate', { size: 16, hue: 100, speed: 44, weight: 5 }),
   species('diatom', 'glider', { size: 14, hue: 40, speed: 14, weight: 4 }, { grazer: false }),
   species('rotifer', 'rotifer', { size: 18, hue: 30, speed: 34, weight: 3 }),
-  species('bacillus', 'bacterium', { size: 8, hue: 196, speed: 38, weight: 5 }, { cap: 140 }),
-  species('coccus', 'coccus', { size: 6, hue: 280, speed: 0, weight: 4 }, { cap: 140 }),
+  species('bacillus', 'bacterium', { size: 8, hue: 196, speed: 38, weight: 5 }, { cap: 560 }),
+  species('coccus', 'coccus', { size: 6, hue: 280, speed: 0, weight: 4 }, { cap: 560 }),
   species('halteria', 'jumper', { size: 12, hue: 70, speed: 30, weight: 3 }),
   species(
     'volvox',

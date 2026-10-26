@@ -1,5 +1,5 @@
 import { clamp, hslToRgb, WORLD } from '../../shared/math.ts';
-import { BossKind, FoodVariety, type WireBoss } from '../../shared/protocol.ts';
+import { BOSS_REACH, BOSS_SCALE, BossKind, FoodVariety, type WireBoss } from '../../shared/protocol.ts';
 import { burstCell } from '../actions.ts';
 import { addToxin } from '../combat/clouds.ts';
 import { allMembers, randomWorld, toBytes, world } from '../world.ts';
@@ -10,12 +10,12 @@ const COUNT = 34;
 const LENGTH = WORLD * 0.28;
 const SPACING = LENGTH / (COUNT - 1);
 const SPEED = 38;
-const SHOCK_RANGE = 1000;
+const SHOCK_RANGE = 1000 * BOSS_REACH;
 const SHOCK_SPEED = 1100;
-const BURST_RANGE = 420;
+const BURST_RANGE = 420 * BOSS_REACH;
 const BURST_MASS = 150;
 const LIFETIME = 160;
-const TOXIN_RADIUS = 520;
+const TOXIN_RADIUS = 520 * BOSS_REACH;
 const TOXIN_LIFE = 6000;
 
 const State = { Glide: 0, Warn: 1, Snap: 2, Coiled: 3, Relax: 4 } as const;
@@ -27,7 +27,7 @@ const DURATION: Readonly<Record<number, number>> = {
 };
 
 function profile(u: number): number {
-  return 34 + 58 * Math.sin(Math.PI * u) ** 0.35;
+  return (34 + 58 * Math.sin(Math.PI * u) ** 0.35) * BOSS_SCALE;
 }
 
 export class Spirostomum extends Boss {

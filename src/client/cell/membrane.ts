@@ -1,5 +1,7 @@
+import type { Wall } from '../world/obstacles.ts';
 import { at, clamp, mulberry32 } from '../../shared/math.ts';
 import { ringArea, ringCentroid, type Point, type Ring } from './geometry.ts';
+import { containRing, shutWall } from './membrane-limits.ts';
 import { Lobes } from './lobes.ts';
 
 export interface Plane {
@@ -31,9 +33,10 @@ export interface Drive {
   readonly vy: number;
   readonly planes: readonly Plane[];
   readonly cleave: Cleave | null;
+  readonly substeps: number;
+  readonly walls: readonly Wall[];
 }
 
-const SUB_STEPS = 3;
 const ITERATIONS = 2;
 const RETAIN = 0.8;
 const ANCHOR_RATE = 18;
@@ -43,6 +46,7 @@ const PROTRUSION = 0.32;
 const CONTACT_SOFTNESS = 0.3;
 const CUP_RATE = 0.2;
 const SELF_GAP = 0.9;
+const PRESSURE_STEP = 0.04;
 const SHAPE_RATE = 5;
 
 export class Membrane implements Ring {
@@ -57,6 +61,7 @@ export class Membrane implements Ring {
   private readonly sx: Float32Array;
   private readonly sy: Float32Array;
   private readonly lobes: Lobes;
+  private readonly order: number[];
   private time: number;
 
   constructor(ring: Ring, seed: number) {
@@ -67,9 +72,19 @@ export class Membrane implements Ring {
     this.py = Float32Array.from(ring.y);
     this.sx = new Float32Array(this.count);
     this.sy = new Float32Array(this.count);
+    this.order = Array.from({ length: this.count }, (_, i) => i);
     const random = mulberry32(seed);
     this.lobes = new Lobes(random);
     this.time = random() * 100;
+  }
+
+  translate(dx: number, dy: number): void {
+    for (let i = 0; i < this.count; i += 1) {
+      this.x[i] = at(this.x, i) + dx;
+      this.y[i] = at(this.y, i) + dy;
+      this.px[i] = at(this.px, i) + dx;
+      this.py[i] = at(this.py, i) + dy;
+    }
   }
 
   replace(ring: Ring): void {
@@ -88,19 +103,20 @@ export class Membrane implements Ring {
     this.lobes.update(dt, drive.vx, drive.vy);
     this.cups.forEach((cup) => (cup.life -= dt));
     this.cups.splice(0, this.cups.length, ...this.cups.filter((cup) => cup.life > 0));
-    const h = dt / SUB_STEPS;
-    for (let step = 0; step < SUB_STEPS; step += 1) {
+    const h = dt / drive.substeps;
+    if (!drive.cleave) this.protrude(dt);
+    for (let step = 0; step < drive.substeps; step += 1) {
       this.integrate();
       if (drive.cleave) this.relaxHalves(h, drive.anchor, drive.cleave);
-      else this.protrude(h);
       if (drive.cleave) this.followHalves(drive.anchor, drive.cleave, h);
       else this.follow(drive.anchor, h);
       for (let iteration = 0; iteration < ITERATIONS; iteration += 1) {
-        this.constrain(drive.planes);
+        this.constrain(drive.planes, drive.walls);
         if (drive.cleave) this.pinch(drive.anchor, drive.cleave);
       }
       if (!drive.cleave) this.untangle();
     }
+    if (!drive.cleave) containRing(this, drive.anchor);
   }
 
   private integrate(): void {
@@ -146,22 +162,30 @@ export class Membrane implements Ring {
 
   private repel(): void {
     const gap = ((Math.PI * 2 * this.radius) / this.count) * SELF_GAP;
-    const gapSquared = gap * gap;
-    for (let i = 0; i < this.count; i += 1) {
-      for (let j = i + 3; j < this.count; j += 1) {
-        if (i + this.count - j < 3) continue;
-        const dx = at(this.x, j) - at(this.x, i);
-        const dy = at(this.y, j) - at(this.y, i);
-        const squared = dx * dx + dy * dy;
-        if (squared >= gapSquared) continue;
-        const distance = Math.sqrt(squared) || 1e-3;
-        const push = ((gap - distance) / distance) * 0.5;
-        this.x[i] = at(this.x, i) - dx * push;
-        this.y[i] = at(this.y, i) - dy * push;
-        this.x[j] = at(this.x, j) + dx * push;
-        this.y[j] = at(this.y, j) + dy * push;
+    const order = this.order.sort((a, b) => at(this.x, a) - at(this.x, b));
+    for (let a = 0; a < order.length; a += 1) {
+      const i = order[a] ?? 0;
+      for (let b = a + 1; b < order.length; b += 1) {
+        const j = order[b] ?? 0;
+        if (at(this.x, j) - at(this.x, i) >= gap) break;
+        this.separate(i, j, gap);
       }
     }
+  }
+
+  private separate(i: number, j: number, gap: number): void {
+    const apart = Math.abs(i - j);
+    if (apart < 3 || this.count - apart < 3) return;
+    const dx = at(this.x, j) - at(this.x, i);
+    const dy = at(this.y, j) - at(this.y, i);
+    const squared = dx * dx + dy * dy;
+    if (squared >= gap * gap) return;
+    const distance = Math.sqrt(squared) || 1e-3;
+    const push = ((gap - distance) / distance) * 0.5;
+    this.x[i] = at(this.x, i) - dx * push;
+    this.y[i] = at(this.y, i) - dy * push;
+    this.x[j] = at(this.x, j) + dx * push;
+    this.y[j] = at(this.y, j) + dy * push;
   }
 
   private untangle(): void {
@@ -261,11 +285,12 @@ export class Membrane implements Ring {
     return width;
   }
 
-  private constrain(planes: readonly Plane[]): void {
+  private constrain(planes: readonly Plane[], walls: readonly Wall[]): void {
     this.edges();
     this.pressure();
     this.wrapCups();
     for (const plane of planes) this.clamp(plane);
+    for (const wall of walls) shutWall(this, wall);
     this.tension();
     this.repel();
   }
@@ -311,9 +336,14 @@ export class Membrane implements Ring {
       norm += at(this.sx, i) ** 2 + at(this.sy, i) ** 2;
     }
     const lambda = -error / Math.max(norm, 1e-6);
+    const limit = this.radius * PRESSURE_STEP;
     for (let i = 0; i < this.count; i += 1) {
-      this.x[i] = at(this.x, i) + at(this.sx, i) * lambda;
-      this.y[i] = at(this.y, i) + at(this.sy, i) * lambda;
+      const dx = at(this.sx, i) * lambda;
+      const dy = at(this.sy, i) * lambda;
+      const length = Math.hypot(dx, dy);
+      const scale = length > limit ? limit / length : 1;
+      this.x[i] = at(this.x, i) + dx * scale;
+      this.y[i] = at(this.y, i) + dy * scale;
     }
   }
 

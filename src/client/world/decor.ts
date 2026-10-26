@@ -1,7 +1,7 @@
 import type { Rgb } from '../../shared/math.ts';
 import { randomRange, worldColorAt } from '../color.ts';
 import type { CellVisual } from '../cell/cell.ts';
-import { state } from '../state.ts';
+import { inView, state } from '../state.ts';
 import { sampleClientFlow } from '../render/flow-field.ts';
 import { viewBounds, type Bounds } from './camera.ts';
 import { pushOut } from './obstacles.ts';
@@ -41,6 +41,7 @@ interface DebrisOptions {
 }
 
 const DEBRIS_COUNT = 70;
+const DEBRIS_LIMIT = 600;
 const BUBBLE_COUNT = 20;
 
 export const debris: Debris[] = [];
@@ -77,6 +78,7 @@ export interface Burst {
 }
 
 export function spawnBurst(x: number, y: number, color: Rgb, burst: Burst): void {
+  if (!inView({ x, y }, 0.75, burst.spread + 200)) return;
   for (let i = 0; i < burst.count; i += 1) {
     spawnDebris(x + randomRange(-burst.spread, burst.spread), y + randomRange(-burst.spread, burst.spread), color, {
       vx: randomRange(-burst.speed, burst.speed),
@@ -155,8 +157,9 @@ function updateDebris(dt: number, bounds: Bounds): void {
     const particle = debris[i];
     if (!particle) continue;
     driftDebris(particle, dt);
-    if (particle.life <= 0) debris.splice(i, 1);
-    else if (outside(particle, bounds)) recycleDebris(particle, bounds);
+    const gone = outside(particle, bounds);
+    if (particle.life <= 0 || (gone && debris.length > DEBRIS_COUNT)) debris.splice(i, 1);
+    else if (gone) recycleDebris(particle, bounds);
   }
 }
 
@@ -197,8 +200,8 @@ function displace(
 ): void {
   const dx = item.x - cell.x;
   const dy = item.y - cell.y;
+  if (dx * dx + dy * dy >= reach * reach) return;
   const distance = Math.hypot(dx, dy) || 0.001;
-  if (distance >= reach) return;
   const push = (reach - distance) / reach;
   item.x += (dx / distance) * push * strength.move;
   item.y += (dy / distance) * push * strength.move;
@@ -217,14 +220,15 @@ function pushAside(cell: CellVisual): void {
 }
 
 function cohere(items: readonly Movable[], range: number, strength: number): void {
-  items.forEach((a, i) => {
-    for (let j = i + 1; j < items.length; j += 1) {
-      const b = items[j];
-      if (!b) continue;
+  const sorted = [...items].sort((a, b) => a.x - b.x);
+  sorted.forEach((a, i) => {
+    for (let j = i + 1; j < sorted.length; j += 1) {
+      const b = sorted[j];
+      if (!b || b.x - a.x > range) break;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
+      if (dx * dx + dy * dy > range * range) continue;
       const distance = Math.hypot(dx, dy) || 0.001;
-      if (distance > range) continue;
       const force = (1 - distance / range) * strength;
       a.vx += (dx / distance) * force;
       a.vy += (dy / distance) * force;
@@ -239,7 +243,8 @@ export function maintainDecor(dt: number): void {
   updateDebris(dt, bounds);
   for (const bubble of bubbles) updateBubble(bubble, dt, bounds);
   while (debris.length < DEBRIS_COUNT) spawnAmbientDebris(bounds);
-  for (const cell of state.cells.values()) pushAside(cell);
+  for (const cell of state.cells.values()) if (inView(cell, 0.75, cell.radius * 2)) pushAside(cell);
+  if (debris.length > DEBRIS_LIMIT) debris.splice(0, debris.length - DEBRIS_LIMIT);
   cohere(bubbles, 135, 0.011);
   cohere(
     debris.filter((particle) => particle.type <= 0.5),

@@ -1,16 +1,17 @@
 import { clamp, hslToRgb, radiusFor, WORLD } from '../../shared/math.ts';
-import { BossKind, EventKind, FoodVariety, type WireBoss } from '../../shared/protocol.ts';
+import { BOSS_REACH, BOSS_SCALE, BossKind, EventKind, FoodVariety, type WireBoss } from '../../shared/protocol.ts';
 import type { Cell } from '../types.ts';
 import { allMembers, emit, toBytes, world } from '../world.ts';
 import { Boss, dissolveChain, joints, outsideWorld, shove, tail } from './boss.ts';
 import { follow, makeChain, pointAlong, type Chain } from './chain.ts';
+import { foodsNear } from '../life/senses.ts';
 
 const COUNT = 56;
 const LENGTH = WORLD * 0.3;
 const SPACING = LENGTH / (COUNT - 1);
 const SPEED = 115;
 const TURN = 1.1;
-const SUCTION_RANGE = 520;
+const SUCTION_RANGE = 520 * BOSS_REACH;
 const GUT_TIME = 9;
 const GUT_DRAIN = 0.07;
 const LIFETIME = 170;
@@ -34,7 +35,7 @@ function edgePoint(): { x: number; y: number } {
 
 function profile(u: number): number {
   const body = Math.sin(Math.PI * clamp(u * 1.08, 0, 1)) ** 0.55;
-  return 18 + 72 * body;
+  return (18 + 72 * body) * BOSS_SCALE;
 }
 
 export class Nematode extends Boss {
@@ -114,7 +115,7 @@ export class Nematode extends Boss {
       return distance - mouth;
     };
     for (const { cell } of allMembers()) if (cell.gut < 0 && pull(cell, 900) < 0) this.swallow(cell);
-    for (const food of world.foods.values()) if (pull(food, 700) < 0) world.foods.delete(food.id);
+    for (const food of foodsNear(head.x, head.y, SUCTION_RANGE)) if (pull(food, 700) < 0) world.foods.delete(food.id);
   }
 
   private swallow(cell: Cell): void {

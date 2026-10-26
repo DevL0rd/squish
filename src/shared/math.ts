@@ -1,6 +1,6 @@
 export type Rgb = readonly [number, number, number];
 
-export const WORLD = 12960;
+export const WORLD = 25920;
 export const TAU = Math.PI * 2;
 
 export function at(field: ArrayLike<number>, index: number): number {
@@ -14,6 +14,10 @@ export function clamp(value: number, low: number, high: number): number {
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
+}
+
+export function pareto(random: () => number, alpha: number, limit: number): number {
+  return Math.min(limit, (1 - random()) ** (-1 / alpha));
 }
 
 export function radiusFor(mass: number): number {
@@ -81,7 +85,7 @@ export function sampleGrid(field: Float32Array, n: number, x: number, y: number)
   const fx = cx - x0;
   const fy = cy - y0;
   const i00 = y0 * n + x0;
-  const top = at(field, i00) * (1 - fx) + at(field, i00 + 1) * fx;
-  const bottom = at(field, i00 + n) * (1 - fx) + at(field, i00 + n + 1) * fx;
+  const top = (field[i00] ?? 0) * (1 - fx) + (field[i00 + 1] ?? 0) * fx;
+  const bottom = (field[i00 + n] ?? 0) * (1 - fx) + (field[i00 + n + 1] ?? 0) * fx;
   return top * (1 - fy) + bottom * fy;
 }

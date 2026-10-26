@@ -1,3 +1,4 @@
+import { SkyTool } from '../../shared/protocol.ts';
 import { encodeHazards } from '../../shared/hazard-codec.ts';
 import type { Cell, Player } from '../types.ts';
 import { sendJson } from '../transport.ts';
@@ -53,9 +54,22 @@ function scheduleBoss(): void {
   pending = null;
 }
 
+const TOOL_TEXT: Readonly<Record<number, string>> = {
+  [SkyTool.Needle]: 'The lamp sharpens. Something is looking down at the slide',
+  [SkyTool.Holder]: 'A holding pipette is lowering. Do not get caught',
+  [SkyTool.Knife]: 'A glass microknife is being lowered. Stay out of its line',
+};
+
+function pickTool(): number {
+  const roll = Math.random();
+  if (roll < 0.5) return SkyTool.Needle;
+  return roll < 0.75 ? SkyTool.Holder : SkyTool.Knife;
+}
+
 function schedulePipette(): void {
   if (pipetteActive() || clock < nextPipette) return;
-  if (startPipette()) announce('The lamp sharpens. Something is looking down at the slide', true);
+  const tool = pickTool();
+  if (startPipette(tool)) announce(TOOL_TEXT[tool] ?? '', true);
   nextPipette = clock + between(rapid ? RAPID_PIPETTE_GAP : PIPETTE_GAP);
 }
 
@@ -85,8 +99,8 @@ export function endBoss(): void {
   nextBoss = clock + between(rapid ? RAPID_BOSS_GAP : BOSS_GAP);
 }
 
-export function forcePipette(target: Player): void {
-  if (startPipette(target)) announce('The lamp sharpens. Something is looking down at the slide', true);
+export function forcePipette(target: Player, tool: number): void {
+  if (startPipette(tool, target)) announce(TOOL_TEXT[tool] ?? '', true);
 }
 
 export function toggleRapid(): boolean {

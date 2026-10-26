@@ -1,10 +1,12 @@
-import { hslToRgb, regionalHue } from '../../shared/math.ts';
+import { hslToRgb, pareto, regionalHue } from '../../shared/math.ts';
 import { CreatureState } from '../../shared/protocol.ts';
 import type { Creature } from '../types.ts';
 import { nextId, toBytes, world } from '../world.ts';
 import { Behavior, speciesOf } from './species.ts';
 
 const REGION_BLEND = 0.65;
+const SIZE_TAIL = 2.4;
+const SIZE_LIMIT = 9;
 
 export function doublingTime(): number {
   return 20000 + Math.random() * 20000;
@@ -14,7 +16,8 @@ export function spawnCreature(kind: number, x: number, y: number, overrides: Par
   const meta = speciesOf(kind);
   const heading = Math.random() * Math.PI * 2;
   const hue = regionalHue(x, y, meta.hue, meta.behavior === Behavior.Drift ? REGION_BLEND : 0);
-  const radius = meta.size * (meta.spread[0] + Math.random() * (meta.spread[1] - meta.spread[0]));
+  const scale = meta.behavior === Behavior.Virus ? 1 : pareto(Math.random, SIZE_TAIL, SIZE_LIMIT);
+  const radius = meta.size * scale * (meta.spread[0] + Math.random() * (meta.spread[1] - meta.spread[0]));
   const creature: Creature = {
     id: nextId('creature'),
     kind,

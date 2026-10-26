@@ -16,6 +16,11 @@ export class ByteWriter {
     this.offset += 2;
   }
 
+  u32(value: number): void {
+    this.view.setUint32(this.offset, value >>> 0, true);
+    this.offset += 4;
+  }
+
   f32(value: number): void {
     this.view.setFloat32(this.offset, value, true);
     this.offset += 4;
@@ -43,6 +48,12 @@ export class ByteReader {
   u16(): number {
     const value = this.view.getUint16(this.offset, true);
     this.offset += 2;
+    return value;
+  }
+
+  u32(): number {
+    const value = this.view.getUint32(this.offset, true);
+    this.offset += 4;
     return value;
   }
 

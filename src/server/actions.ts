@@ -1,7 +1,8 @@
-import { radiusFor } from '../shared/math.ts';
+import { clamp, radiusFor } from '../shared/math.ts';
 import { EventKind, FoodVariety } from '../shared/protocol.ts';
-import { MAX_CELLS, MERGE_DELAY } from './config.ts';
+import { MERGE_DELAY } from './config.ts';
 import { addFood } from './food.ts';
+import { blockedAt } from './obstacles.ts';
 import { blendPigment } from './pigment.ts';
 import { direction } from './physics.ts';
 import { makeCell, playerColor } from './players.ts';
@@ -9,12 +10,11 @@ import type { Cell, Player, Point } from './types.ts';
 import { emit, world } from './world.ts';
 
 const SPLIT_COOLDOWN = 260;
-const SPLIT_MIN_MASS = 44;
+const SPLIT_MIN_MASS = 5;
 const LAUNCH_SPEED = 980;
 const EJECT_COOLDOWN = 240;
 const EJECT_MIN_MASS = 50;
 const EJECT_MASS = 17;
-const CHIP_MIN_MASS = 14;
 const CHIP_SPEED = 620;
 const EJECT_SPEED = 1500;
 
@@ -75,14 +75,12 @@ function splitCell(player: Player, cell: Cell): void {
 
 export function splitPlayer(player: Player): void {
   if (world.now - player.lastSplit < SPLIT_COOLDOWN) return;
-  if (player.cells.length >= MAX_CELLS) return;
   player.lastSplit = world.now;
   for (const cell of [...player.cells]) {
     if (cell.gut >= 0) {
       escapeGut(player, cell);
       continue;
     }
-    if (player.cells.length >= MAX_CELLS) break;
     if (cell.mass >= SPLIT_MIN_MASS) splitCell(player, cell);
   }
 }
@@ -130,46 +128,72 @@ export function absorbInto(survivor: Cell, absorbed: Cell): void {
 
 function canRejoin(a: Cell, b: Cell): boolean {
   if (world.now < a.mergeAt || world.now < b.mergeAt) return false;
-  return Math.hypot(a.x - b.x, a.y - b.y) <= a.radius + b.radius + 8;
+  return Math.hypot(a.x - b.x, a.y - b.y) <= a.radius + b.radius + REJOIN_SLACK;
+}
+
+const REJOIN_SLACK = 8;
+
+function rejoin(player: Player, a: Cell, b: Cell): void {
+  a.digesting += b.digesting;
+  absorbInto(a, b);
+  emit({
+    kind: EventKind.Merge,
+    cellId: b.id,
+    predatorId: a.id,
+    x: a.x,
+    y: a.y,
+    color: playerColor(player, 0.82, 0.58),
+  });
 }
 
 export function rejoinCells(player: Player): void {
-  const cells = player.cells;
-  for (let i = 0; i < cells.length; i += 1) {
-    const a = cells[i];
-    if (!a) continue;
-    for (let j = i + 1; j < cells.length; j += 1) {
-      const b = cells[j];
-      if (!b || !canRejoin(a, b)) continue;
-      a.digesting += b.digesting;
-      absorbInto(a, b);
-      emit({
-        kind: EventKind.Merge,
-        cellId: b.id,
-        predatorId: a.id,
-        x: a.x,
-        y: a.y,
-        color: playerColor(player, 0.82, 0.58),
-      });
-      cells.splice(j, 1);
-      j -= 1;
+  if (player.cells.length < 2) return;
+  const sorted = [...player.cells].sort((a, b) => a.x - a.radius - (b.x - b.radius));
+  const gone = new Set<Cell>();
+  sorted.forEach((a, i) => {
+    if (gone.has(a)) return;
+    for (let j = i + 1; j < sorted.length; j += 1) {
+      const b = sorted[j];
+      if (!b || b.x - b.radius > a.x + a.radius + REJOIN_SLACK) break;
+      if (gone.has(b) || !canRejoin(a, b)) continue;
+      rejoin(player, a, b);
+      gone.add(b);
     }
-  }
+  });
+  if (gone.size) player.cells = player.cells.filter((cell) => !gone.has(cell));
 }
 
 const BURST_SPEED = 520;
 const BURST_PIECES = 7;
 
+const PINCH_SPEED = 260;
+const PINCH_COOLDOWN = 900;
+
+export function severCell(player: Player, cell: Cell, aim: Point, share: number, speed: number): void {
+  const mass = cell.mass * clamp(share, 0.05, 0.95);
+  if (mass < SPLIT_MIN_MASS || cell.mass - mass < SPLIT_MIN_MASS) return;
+  cell.mass -= mass;
+  cell.radius = radiusFor(cell.mass);
+  cell.mergeAt = world.now + MERGE_DELAY;
+  launchPiece(player, cell, { aim, reach: 0.6, speed, mass });
+}
+
+export function pinchCell(player: Player, cell: Cell, aim: Point, share: number): void {
+  if (world.now - player.lastSplit < PINCH_COOLDOWN || !blockedAt(cell, cell.radius * 1.1)) return;
+  player.lastSplit = world.now;
+  severCell(player, cell, aim, clamp(share, 0.15, 0.85), PINCH_SPEED);
+}
+
 export function chipCell(player: Player, cell: Cell, aim: Point, fraction: number): void {
   const mass = cell.mass * fraction;
-  if (player.cells.length >= MAX_CELLS || mass < CHIP_MIN_MASS) return;
+  if (mass < SPLIT_MIN_MASS) return;
   cell.mass -= mass;
   cell.radius = radiusFor(cell.mass);
   launchPiece(player, cell, { aim, reach: 0.9, speed: CHIP_SPEED, mass });
 }
 
 export function burstCell(player: Player, cell: Cell): boolean {
-  const pieces = Math.min(BURST_PIECES, MAX_CELLS - player.cells.length + 1);
+  const pieces = Math.min(BURST_PIECES, Math.floor(cell.mass / SPLIT_MIN_MASS));
   if (pieces < 2) return false;
   const share = cell.mass / pieces;
   cell.mass = share;

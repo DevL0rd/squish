@@ -21,14 +21,22 @@ const LAUNCH_DRAG = 2.4;
 const BASE_SPEED = 540;
 const DIGEST_TIME = 10;
 const DIGEST_DRAG = 0.035;
+const MASS_SLOWDOWN = 0.3;
+const MASS_SLOWDOWN_AT = 10000;
 
 function steerCell(player: Player, cell: Cell, dt: number): void {
   if (cell.gut >= 0) return;
+  if (world.now < cell.heldUntil) {
+    cell.vx = 0;
+    cell.vy = 0;
+    return;
+  }
   const dx = player.target.x - cell.x;
   const dy = player.target.y - cell.y;
   const distance = Math.hypot(dx, dy);
   cell.digesting *= Math.exp((-dt * digestionRate(cell.radius)) / DIGEST_TIME);
-  const speed = (BASE_SPEED / (1 + cell.digesting * DIGEST_DRAG)) * speedFactor(player) * hazardSlowdown(cell);
+  const heft = 1 - MASS_SLOWDOWN * Math.min(1, cell.mass / MASS_SLOWDOWN_AT);
+  const speed = (BASE_SPEED / (1 + cell.digesting * DIGEST_DRAG)) * heft * speedFactor(player) * hazardSlowdown(cell);
   let desiredX = 0;
   let desiredY = 0;
   if (distance > cell.radius * 0.18) {
@@ -106,9 +114,13 @@ function limitBots(dt: number): void {
   }
 }
 
+function* allCells(): Generator<Cell> {
+  for (const player of world.players.values()) yield* player.cells;
+}
+
 function collideAll(): void {
   for (const member of allMembers()) collideBody(member.cell);
-  for (const food of world.foods.values()) collideBody(food);
+  for (const food of world.foods.values()) if ((food.id + world.tick) % 2 === 0) collideBody(food);
   for (const creature of world.creatures.values()) collideBody(creature);
 }
 
@@ -118,10 +130,7 @@ export function update(dt: number): void {
   movePlayers(dt);
   resolveCells();
   limitBots(dt);
-  updateFlow(
-    dt,
-    allMembers().map((member) => member.cell),
-  );
+  updateFlow(dt, allCells());
   updateFoods(dt);
   updateCreatures(dt);
   updateObstacles(dt);

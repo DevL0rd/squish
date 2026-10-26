@@ -1,6 +1,6 @@
 import { clamp, WORLD } from '../shared/math.ts';
 import { MAX_NAME } from '../shared/protocol.ts';
-import { splitPlayer } from './actions.ts';
+import { pinchCell, splitPlayer } from './actions.ts';
 import { boostPlayer, tellBoost } from './boost.ts';
 import { attack } from './combat/weapons.ts';
 import { tellProgress } from './progress.ts';
@@ -50,7 +50,7 @@ function join(client: Client, message: Message): void {
   const player = createPlayer({
     ws: client.ws,
     name,
-    admin: isAdmin(name),
+    admin: isAdmin(name, client.local, message['key']),
     hue: typeof hue === 'number' && Number.isFinite(hue) ? hue : Math.random() * 360,
   });
   client.player = player;
@@ -67,7 +67,7 @@ function join(client: Client, message: Message): void {
   broadcastRoster();
   tellBoost(player);
   tellProgress(player);
-  sendPacket(client, snapshotPacket(false));
+  sendPacket(client, snapshotPacket(client, false));
   sendPacket(client, foodPacket(client));
 }
 
@@ -87,6 +87,16 @@ function steer(player: Player, message: Message): void {
   player.target.y = point.y;
 }
 
+function pinch(player: Player, message: Message): void {
+  const cell = player.cells.find((item) => item.id === message['cell']);
+  const x = Number(message['x']);
+  const y = Number(message['y']);
+  const share = Number(message['share']);
+  const length = Math.hypot(x, y);
+  if (!cell || !Number.isFinite(share) || !(length > 0)) return;
+  pinchCell(player, cell, { x: x / length, y: y / length }, share);
+}
+
 function playerCommand(client: Client, player: Player, message: Message): void {
   switch (message['t']) {
     case 'respawn':
@@ -104,11 +114,16 @@ function playerCommand(client: Client, player: Player, message: Message): void {
     case 'boost':
       boostPlayer(player);
       return;
-    case 'admin':
-      adminCommand(player, message['action'], message['arg']);
-      return;
     default:
-      return;
+      toolCommand(client, player, message);
+  }
+}
+
+function toolCommand(client: Client, player: Player, message: Message): void {
+  if (message['t'] === 'pinch') pinch(player, message);
+  else if (message['t'] === 'admin') adminCommand(player, message['action'], message['arg']);
+  else if (message['t'] === 'probe' && player.admin && typeof message['at'] === 'number') {
+    sendJson(client.ws, { t: 'echo', at: message['at'] });
   }
 }
 

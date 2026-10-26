@@ -1,24 +1,38 @@
+import { lightTransport } from './light-transport.ts';
+
 export const spotFragment = `#version 300 es
 precision highp float;
 in vec2 vWorld;
 out vec4 outColor;
+uniform sampler2D uOccluder;
+uniform vec2 uCamera;
+uniform vec2 uView;
 uniform vec2 uCenter;
+uniform vec2 uLight;
 uniform float uRadius;
 uniform float uPhase;
 uniform float uProgress;
 uniform float uTime;
+uniform int uSteps;
+
+${lightTransport}
 
 void main() {
   float d = distance(vWorld, uCenter) / uRadius;
   float focus = abs(uPhase - 1.0) < 0.5 ? uProgress : 0.0;
   float strike = abs(uPhase - 2.0) < 0.5 ? 1.0 - uProgress : 0.0;
   float fade = abs(uPhase - 3.0) < 0.5 ? 1.0 - uProgress : 1.0;
-  float pool = smoothstep(1.0, mix(0.55, 0.85, focus), d);
-  float iris = exp(-pow((d - mix(1.0, 0.92, focus)) / 0.03, 2.0)) * (0.3 + focus * 0.8);
-  float flicker = 0.92 + 0.08 * sin(uTime * 23.0) * sin(uTime * 7.0);
-  float light = (pool * (0.16 + 0.3 * focus) + iris * 0.25 + strike * pool * 0.6) * fade * flicker;
-  if (light < 0.002) discard;
-  outColor = vec4(vec3(1.0, 0.96, 0.86) * light, light);
+  float softness = mix(0.4, 0.14, focus);
+  float pool = 1.0 - smoothstep(1.0 - softness, 1.0 + softness * 0.3, d);
+  float core = exp(-d * d * 2.4);
+  float flicker = 0.94 + 0.06 * sin(uTime * 23.0) * sin(uTime * 7.0);
+  float amount = (pool * (0.14 + 0.28 * focus) + core * 0.07 + strike * pool * 0.5) * fade * flicker;
+  if (amount < 0.002) discard;
+  vec3 lit = transmit(vWorld, vWorld + uLight * 300.0, 0.0);
+  vec3 warm = vec3(1.0, 0.95, 0.84);
+  vec3 rim = vec3(0.78, 0.88, 1.0);
+  vec3 col = mix(rim, warm, smoothstep(1.05, 0.6, d)) * amount * lit;
+  outColor = vec4(col, 0.0);
 }`;
 
 export const needleFragment = `#version 300 es
@@ -31,6 +45,7 @@ uniform vec2 uDirection;
 uniform float uProgress;
 uniform vec3 uFluid;
 uniform float uGift;
+uniform float uTool;
 uniform vec2 uResolution;
 uniform vec2 uView;
 
@@ -50,12 +65,17 @@ void main() {
   float along = dot(p, uDirection);
   float side = dot(p, normal);
   float across = abs(side);
-  float t = clamp(along / TAPER, 0.0, 1.0);
-  float radius = mix(3.0, 36.0, 1.0 - pow(1.0 - t, 2.4));
+  float holder = step(0.5, uTool) * step(uTool, 1.5);
+  float knife = step(1.5, uTool);
+  float taper = mix(TAPER, 380.0, max(holder, knife));
+  float t = clamp(along / taper, 0.0, 1.0);
+  float tipRadius = mix(mix(3.0, 30.0, holder), 1.2, knife);
+  float baseRadius = mix(mix(36.0, 48.0, holder), 30.0, knife);
+  float radius = mix(tipRadius, baseRadius, 1.0 - pow(1.0 - t, mix(2.4, 1.2, knife)));
   float pixel = uView.y / uResolution.y;
   float blur = pixel * 1.1 + max(along + lift, 0.0) * 0.016;
   if (along < -blur * 3.0 || across > radius + blur * 3.0 || along > LENGTH) discard;
-  float wall = max(1.1, radius * 0.2);
+  float wall = mix(max(1.1, radius * 0.2), radius, knife);
   float inner = radius - wall;
   float outerCover = 1.0 - smoothstep(radius - blur, radius + blur, across);
   float innerCover = 1.0 - smoothstep(inner - blur, inner + blur, max(across, 0.0));
@@ -78,7 +98,7 @@ void main() {
   float liquid = uGift > 0.5
     ? smoothstep(meniscus - blur, meniscus + blur, along)
     : 1.0 - smoothstep(meniscus - blur, meniscus + blur, along);
-  liquid *= innerCover * smoothstep(0.18, 0.26, uProgress) * (1.0 - smoothstep(0.9, 0.98, uProgress));
+  liquid *= (1.0 - max(holder, knife)) * innerCover * smoothstep(0.18, 0.26, uProgress) * (1.0 - smoothstep(0.9, 0.98, uProgress));
   float meniscusLine = band(along - meniscus, 1.4 + blur) * innerCover * step(0.2, uProgress);
   vec2 uv = gl_FragCoord.xy / uResolution;
   float bend = across / max(radius, 1.0);

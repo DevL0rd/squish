@@ -4,7 +4,7 @@ import type { Cell, Player } from './types.ts';
 import { biggestCell, emit, ownerOf, toBytes } from './world.ts';
 import { hslToRgb } from '../shared/math.ts';
 
-const LEVEL_MASS = [0, 200, 600, 1400, 3000] as const;
+const LEVEL_MASS = [0, 2500, 5000, 7500, 10000] as const;
 const MAX_DEFENSE = 0.6;
 const DEFENSE_HALF_LIFE = 240;
 const ARMOR: Readonly<Record<string, number>> = {

@@ -5,7 +5,7 @@
   "type": "module",
   "description": "A living suspension of soft cells in dark water.",
   "scripts": {
-    "dev": "concurrently -k -n server,client \"node --watch src/server/main.ts --port 5174 --admin\" \"vite\"",
+    "dev": "concurrently -k -n server,client \"node --env-file-if-exists=.env --watch src/server/main.ts --port 5174 --admin\" \"vite\"",
     "build": "vite build",
     "start": "vite build && node src/server/main.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p src/client/tsconfig.json",

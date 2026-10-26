@@ -49,6 +49,7 @@ uniform float uTime;
 uniform float uState;
 uniform float uProgress;
 uniform sampler2D uBackground;
+uniform float uScale;
 ${noise}
 
 const vec2 SHEAR = vec2(-0.6, 0.8);
@@ -96,7 +97,7 @@ void main() {
   s.u = mix(vStart.w, vEnd.w, t);
   s.v = (dir.x * offset.y - dir.y * offset.x) / radius;
   s.r = radius;
-  s.along = s.u * vNext.w;
+  s.along = (s.u * vNext.w) / uScale;
   s.pixel = uView.y / uResolution.y;
   s.total = vNext.w;
   s.side = vec2(-dir.y, dir.x);

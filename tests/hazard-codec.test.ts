@@ -6,7 +6,7 @@ import { Packet } from '../src/shared/protocol.ts';
 
 await test('hazard packet round trip keeps the spotlight and boss chains', () => {
   const packet = {
-    spot: { x: 100, y: 200, radius: 300, phase: 1, progress: 0.5, target: 42 },
+    spot: { x: 100, y: 200, radius: 300, phase: 1, progress: 0.5, target: 42, tool: 2, angle: 0 },
     boss: {
       kind: 1,
       state: 2,

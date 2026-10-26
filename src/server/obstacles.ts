@@ -5,8 +5,10 @@ import { flowAt } from './flow.ts';
 import type { Point } from './types.ts';
 import { nextId, randomWorld } from './world.ts';
 
-const OBSTACLE_COUNT = 80;
+const OBSTACLE_COUNT = 320;
 const DRIFT = 0.06;
+const GRID = 512;
+const GRID_SIDE = Math.ceil(WORLD / GRID);
 
 interface Obstacle extends ObstacleShape {
   x: number;
@@ -98,6 +100,40 @@ export function seedObstacles(): void {
       reach,
     });
   }
+  rebuildGrid();
+}
+
+const grid: Obstacle[][] = Array.from({ length: GRID_SIDE * GRID_SIDE }, () => []);
+
+function span(value: number, reach: number): [number, number] {
+  return [
+    clamp(Math.floor((value - reach) / GRID), 0, GRID_SIDE - 1),
+    clamp(Math.floor((value + reach) / GRID), 0, GRID_SIDE - 1),
+  ];
+}
+
+function rebuildGrid(): void {
+  for (const bucket of grid) bucket.length = 0;
+  for (const obstacle of obstacles) {
+    const [x0, x1] = span(obstacle.x, obstacle.reach);
+    const [y0, y1] = span(obstacle.y, obstacle.reach);
+    for (let gy = y0; gy <= y1; gy += 1) {
+      for (let gx = x0; gx <= x1; gx += 1) grid[gy * GRID_SIDE + gx]?.push(obstacle);
+    }
+  }
+}
+
+function nearby(point: Point, radius: number): readonly Obstacle[] {
+  const [x0, x1] = span(point.x, radius);
+  const [y0, y1] = span(point.y, radius);
+  if (x0 === x1 && y0 === y1) return grid[y0 * GRID_SIDE + x0] ?? [];
+  const found: Obstacle[] = [];
+  for (let gy = y0; gy <= y1; gy += 1) {
+    for (let gx = x0; gx <= x1; gx += 1) {
+      for (const obstacle of grid[gy * GRID_SIDE + gx] ?? []) if (!found.includes(obstacle)) found.push(obstacle);
+    }
+  }
+  return found;
 }
 
 function toLocal(obstacle: Obstacle, point: Point): Point {
@@ -120,7 +156,10 @@ interface Contact {
 }
 
 function contactWith(obstacle: Obstacle, body: Point, radius: number): Contact | null {
-  if (Math.hypot(body.x - obstacle.x, body.y - obstacle.y) > obstacle.reach + radius) return null;
+  const dx0 = body.x - obstacle.x;
+  const dy0 = body.y - obstacle.y;
+  const limit = obstacle.reach + radius;
+  if (dx0 * dx0 + dy0 * dy0 > limit * limit) return null;
   const local = toLocal(obstacle, body);
   const edge = nearestEdge(obstacle.points, local);
   const dx = local.x - edge.point.x;
@@ -133,7 +172,7 @@ function contactWith(obstacle: Obstacle, body: Point, radius: number): Contact |
 }
 
 export function collideBody(body: Body): void {
-  for (const obstacle of obstacles) {
+  for (const obstacle of nearby(body, body.radius)) {
     const contact = contactWith(obstacle, body, body.radius);
     if (!contact) continue;
     body.x += contact.normal.x * contact.depth;
@@ -148,9 +187,10 @@ export function collideBody(body: Body): void {
 function separate(a: Obstacle, b: Obstacle): void {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
+  const limit = a.reach + b.reach + 40;
+  if (dx * dx + dy * dy >= limit * limit) return;
   const distance = Math.hypot(dx, dy) || 1;
-  const overlap = a.reach + b.reach + 40 - distance;
-  if (overlap <= 0) return;
+  const overlap = limit - distance;
   a.vx -= (dx / distance) * overlap * 0.01;
   a.vy -= (dy / distance) * overlap * 0.01;
   b.vx += (dx / distance) * overlap * 0.01;
@@ -158,17 +198,16 @@ function separate(a: Obstacle, b: Obstacle): void {
 }
 
 export function updateObstacles(dt: number): void {
-  obstacles.forEach((obstacle, i) => {
+  obstacles.forEach((obstacle) => {
     const flow = flowAt(obstacle);
     obstacle.vx = (obstacle.vx + flow.x * DRIFT * dt) * Math.exp(-dt * 0.4);
     obstacle.vy = (obstacle.vy + flow.y * DRIFT * dt) * Math.exp(-dt * 0.4);
-    obstacles.slice(i + 1).forEach((other) => {
-      separate(obstacle, other);
-    });
+    for (const other of nearby(obstacle, obstacle.reach + 40)) if (other.id > obstacle.id) separate(obstacle, other);
     obstacle.x = clamp(obstacle.x + obstacle.vx * dt, obstacle.reach, WORLD - obstacle.reach);
     obstacle.y = clamp(obstacle.y + obstacle.vy * dt, obstacle.reach, WORLD - obstacle.reach);
     obstacle.angle += obstacle.spin * dt;
   });
+  rebuildGrid();
 }
 
 export function obstacleShapes(): ObstacleShape[] {
@@ -185,5 +224,5 @@ export function obstaclePositions(): [number, number, number, number][] {
 }
 
 export function blockedAt(point: Point, radius: number): boolean {
-  return obstacles.some((obstacle) => contactWith(obstacle, point, radius) !== null);
+  return nearby(point, radius).some((obstacle) => contactWith(obstacle, point, radius) !== null);
 }

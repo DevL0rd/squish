@@ -66,3 +66,4 @@ export const boostMeter = element('boostMeter', HTMLElement);
 export const levelLabel = element('levelLabel', HTMLElement);
 export const attackLabel = element('attackLabel', HTMLElement);
 export const defenseLabel = element('defenseLabel', HTMLElement);
+export const fpsMeter = element('fpsMeter', HTMLElement);

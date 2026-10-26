@@ -5,7 +5,7 @@ import { spawnCreature } from './spawn.ts';
 import { Behavior, speciesOf } from './species.ts';
 
 const VIRUS_KIND = 11;
-const VIRUS_TARGET = 50;
+const VIRUS_TARGET = 200;
 const FEEDS_TO_SPLIT = 7;
 const LAUNCH_SPEED = 650;
 

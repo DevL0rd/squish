@@ -28,3 +28,34 @@ export function direction(dx: number, dy: number): Point {
   const length = Math.hypot(dx, dy) || 1;
   return { x: dx / length, y: dy / length };
 }
+
+interface Round extends Body {
+  readonly radius: number;
+}
+
+const BOUNCE = 0.6;
+
+export function shoveApart(a: Round, massA: number, b: Round, massB: number): void {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const reach = a.radius + b.radius;
+  const squared = dx * dx + dy * dy;
+  if (squared >= reach * reach) return;
+  const distance = Math.sqrt(squared) || 0.001;
+  const nx = dx / distance;
+  const ny = dy / distance;
+  const overlap = reach - distance;
+  const shareA = massB / (massA + massB);
+  const shareB = 1 - shareA;
+  a.x -= nx * overlap * shareA;
+  a.y -= ny * overlap * shareA;
+  b.x += nx * overlap * shareB;
+  b.y += ny * overlap * shareB;
+  const closing = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+  if (closing >= 0) return;
+  const impulse = -closing * BOUNCE;
+  a.vx -= nx * impulse * shareA;
+  a.vy -= ny * impulse * shareA;
+  b.vx += nx * impulse * shareB;
+  b.vy += ny * impulse * shareB;
+}

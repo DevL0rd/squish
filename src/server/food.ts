@@ -1,14 +1,18 @@
-import { hslToRgb, radiusFor, regionalHue, WORLD, worldHueAt, type Rgb } from '../shared/math.ts';
+import { hslToRgb, pareto, radiusFor, regionalHue, WORLD, worldHueAt, type Rgb } from '../shared/math.ts';
 import { EventKind, FoodVariety } from '../shared/protocol.ts';
 import { FOOD_TARGET } from './config.ts';
 import { flowAt } from './flow.ts';
-import { bounceInside } from './physics.ts';
+import { bounceInside, shoveApart } from './physics.ts';
+import { foodsNear } from './life/senses.ts';
 import { ingest } from './pigment.ts';
 import type { Cell, Food, Player } from './types.ts';
 import { emit, nextId, randomWorld, toBytes, world } from './world.ts';
 
 const COHESION_BUCKET = 48;
 const COHESION_REACH = 34;
+const WAKE_SCALE = 2.4;
+const FLOW_STRIDE = 3;
+const COHESION_STRIDE = 3;
 const EJECTA_LIFETIME = 12000;
 const OWNER_IMMUNITY = 2000;
 const EDIBLE_RATIO = 1.35;
@@ -32,8 +36,25 @@ interface Recipe {
   readonly color: (x: number, y: number) => Rgb;
 }
 
-function massFor(radius: number): number {
-  return (radius / 2) ** 2 / 27.04;
+const FOOD_LIMIT = 4000;
+
+interface Grade {
+  readonly least: number;
+  readonly tail: number;
+  readonly density: number;
+}
+
+const GRADES: Readonly<Record<number, Grade>> = {
+  [FoodVariety.Algae]: { least: 1, tail: 1.6, density: 0.35 },
+  [FoodVariety.Plant]: { least: 4, tail: 1, density: 0.5 },
+  [FoodVariety.Detritus]: { least: 3, tail: 1, density: 0.4 },
+  [FoodVariety.Pollen]: { least: 8, tail: 1.2, density: 0.8 },
+};
+
+function sized(variety: number): { radius: number; mass: number } {
+  const grade = GRADES[variety] ?? { least: 1, tail: 1.6, density: 0.35 };
+  const mass = grade.least * pareto(Math.random, grade.tail, FOOD_LIMIT / grade.least);
+  return { radius: radiusFor(mass / grade.density), mass };
 }
 
 function pickVariety(): number {
@@ -49,20 +70,11 @@ function recipe(variety: number): Recipe {
     (hue: number, saturation: number, lightness: number, weight: number) =>
     (x: number, y: number): Rgb =>
       toBytes(hslToRgb(regionalHue(x, y, hue, weight) + (Math.random() - 0.5) * 18, saturation, lightness));
-  if (variety === FoodVariety.Plant) {
-    const radius = 15 + Math.random() * 9;
-    return { radius, mass: massFor(radius) * 2.2, color: tinted(104, 0.62, 0.42, 0.5) };
-  }
-  if (variety === FoodVariety.Detritus) {
-    const radius = 13 + Math.random() * 12;
-    return { radius, mass: massFor(radius) * 1.6, color: tinted(30, 0.35, 0.4, 0.35) };
-  }
-  if (variety === FoodVariety.Pollen) {
-    const radius = 19 + Math.random() * 9;
-    return { radius, mass: massFor(radius) * 3, color: tinted(46, 0.75, 0.55, 0.4) };
-  }
-  const radius = 8 + Math.random() * 5;
-  return { radius, mass: massFor(radius), color: (x, y) => toBytes(hslToRgb(worldHueAt(x, y), 0.92, 0.55)) };
+  const size = sized(variety);
+  if (variety === FoodVariety.Plant) return { ...size, color: tinted(104, 0.62, 0.42, 0.5) };
+  if (variety === FoodVariety.Detritus) return { ...size, color: tinted(30, 0.35, 0.4, 0.35) };
+  if (variety === FoodVariety.Pollen) return { ...size, color: tinted(46, 0.75, 0.55, 0.4) };
+  return { ...size, color: (x, y) => toBytes(hslToRgb(worldHueAt(x, y), 0.92, 0.55)) };
 }
 
 export function addFood(options: FoodOptions = {}): Food {
@@ -80,6 +92,8 @@ export function addFood(options: FoodOptions = {}): Food {
     ejecta: false,
     owner: 0,
     born: world.now,
+    flowX: 0,
+    flowY: 0,
     ...options,
     x,
     y,
@@ -112,51 +126,67 @@ function eatFood(cell: Cell, food: Food): void {
   addFood();
 }
 
-function bucketKey(bx: number, by: number): number {
-  return by * 4096 + bx;
+const COHESION_SIDE = Math.ceil(WORLD / COHESION_BUCKET) + 1;
+const heads = new Int32Array(COHESION_SIDE * COHESION_SIDE);
+let next = new Int32Array(0);
+let pool: Food[] = [];
+
+function bucketOf(value: number): number {
+  return Math.min(COHESION_SIDE - 1, Math.max(0, Math.floor(value / COHESION_BUCKET)));
 }
 
-function buildBuckets(): Map<number, Food[]> {
-  const buckets = new Map<number, Food[]>();
-  for (const food of world.foods.values()) {
-    const key = bucketKey(Math.floor(food.x / COHESION_BUCKET), Math.floor(food.y / COHESION_BUCKET));
-    const bucket = buckets.get(key);
-    if (bucket) bucket.push(food);
-    else buckets.set(key, [food]);
-  }
-  return buckets;
+function buildBuckets(): void {
+  pool = [...world.foods.values()];
+  if (next.length < pool.length) next = new Int32Array(pool.length * 2);
+  heads.fill(-1);
+  pool.forEach((food, i) => {
+    const slot = bucketOf(food.y) * COHESION_SIDE + bucketOf(food.x);
+    next[i] = heads[slot] ?? -1;
+    heads[slot] = i;
+  });
 }
 
 function attract(food: Food, other: Food): void {
-  if (other.id <= food.id) return;
   const dx = other.x - food.x;
   const dy = other.y - food.y;
-  const distance = Math.hypot(dx, dy);
-  if (distance <= 0.001 || distance > COHESION_REACH) return;
-  const force = (1 - distance / COHESION_REACH) * 0.055;
+  const squared = dx * dx + dy * dy;
+  if (squared <= 1e-6 || squared > COHESION_REACH * COHESION_REACH) return;
+  const distance = Math.sqrt(squared);
+  const force = (1 - distance / COHESION_REACH) * 0.055 * COHESION_STRIDE;
   food.vx += (dx / distance) * force;
   food.vy += (dy / distance) * force;
   other.vx -= (dx / distance) * force;
   other.vy -= (dy / distance) * force;
 }
 
-function applyFoodCohesion(): void {
-  const buckets = buildBuckets();
-  for (const food of world.foods.values()) {
-    const bx = Math.floor(food.x / COHESION_BUCKET);
-    const by = Math.floor(food.y / COHESION_BUCKET);
-    for (let oy = -1; oy <= 1; oy += 1) {
-      for (let ox = -1; ox <= 1; ox += 1) {
-        for (const other of buckets.get(bucketKey(bx + ox, by + oy)) ?? []) attract(food, other);
-      }
-    }
+function attractBucket(index: number, food: Food, slot: number): void {
+  for (let j = heads[slot] ?? -1; j !== -1; j = next[j] ?? -1) {
+    const other = pool[j];
+    if (j > index && other) attract(food, other);
   }
 }
 
+function applyFoodCohesion(): void {
+  buildBuckets();
+  pool.forEach((food, index) => {
+    const bx = bucketOf(food.x);
+    const by = bucketOf(food.y);
+    for (let gy = Math.max(0, by - 1); gy <= Math.min(COHESION_SIDE - 1, by + 1); gy += 1) {
+      for (let gx = Math.max(0, bx - 1); gx <= Math.min(COHESION_SIDE - 1, bx + 1); gx += 1) {
+        attractBucket(index, food, gy * COHESION_SIDE + gx);
+      }
+    }
+  });
+}
+
 function driftFood(food: Food, dt: number): void {
-  const field = flowAt(food);
-  food.x += (field.x * 0.62 + food.vx) * dt;
-  food.y += (field.y * 0.62 + food.vy) * dt;
+  if ((food.id + world.tick) % FLOW_STRIDE === 0) {
+    const field = flowAt(food);
+    food.flowX = field.x * 0.62;
+    food.flowY = field.y * 0.62;
+  }
+  food.x += (food.flowX + food.vx) * dt;
+  food.y += (food.flowY + food.vy) * dt;
   if (food.vx === 0 && food.vy === 0) return;
   const drag = Math.exp(-dt * (food.ejecta ? 2.4 : 2.8));
   food.vx *= drag;
@@ -173,26 +203,11 @@ function touches(cell: Cell, food: Food, reachScale: number): boolean {
   return cell.radius > food.radius * EDIBLE_RATIO && dx * dx + dy * dy < reach * reach;
 }
 
-function findEater(food: Food): Cell | null {
-  for (const player of world.players.values()) {
-    const immune = food.owner === player.id && world.now - food.born < OWNER_IMMUNITY;
-    if (immune) continue;
-    const cell = player.cells.find((candidate) => touches(candidate, food, 0.3));
-    if (cell) return cell;
-  }
-  return null;
-}
-
 export function updateFoods(dt: number): void {
-  applyFoodCohesion();
+  if (world.tick % COHESION_STRIDE === 0) applyFoodCohesion();
   for (const food of world.foods.values()) {
     driftFood(food, dt);
-    if (food.ejecta && world.now - food.born > EJECTA_LIFETIME) {
-      world.foods.delete(food.id);
-      continue;
-    }
-    const eater = findEater(food);
-    if (eater) eatFood(eater, food);
+    if (food.ejecta && world.now - food.born > EJECTA_LIFETIME) world.foods.delete(food.id);
   }
 }
 
@@ -200,7 +215,7 @@ function pushInWake(cell: Cell, food: Food): void {
   const dx = food.x - cell.x;
   const dy = food.y - cell.y;
   const distanceSquared = dx * dx + dy * dy;
-  const wake = cell.radius * 2.4 + food.radius;
+  const wake = cell.radius * WAKE_SCALE + food.radius;
   if (distanceSquared >= wake * wake) return;
   const distance = Math.sqrt(distanceSquared) || 1;
   const influence = 1 - distance / wake;
@@ -208,16 +223,21 @@ function pushInWake(cell: Cell, food: Food): void {
   food.vy += (dy / distance) * (cell.vy * 0.18 + 22) * influence * 0.12;
 }
 
-function feedCell(cell: Cell): void {
-  for (const food of world.foods.values()) {
-    if (touches(cell, food, 0.35)) eatFood(cell, food);
+function immune(player: Player, food: Food): boolean {
+  return food.owner === player.id && world.now - food.born < OWNER_IMMUNITY;
+}
+
+function feedCell(player: Player, cell: Cell): void {
+  for (const food of foodsNear(cell.x, cell.y, cell.radius * WAKE_SCALE)) {
+    if (!immune(player, food) && touches(cell, food, 0.35)) eatFood(cell, food);
+    else if (cell.radius <= food.radius * EDIBLE_RATIO) shoveApart(cell, cell.mass, food, food.mass);
     else pushInWake(cell, food);
   }
 }
 
 export function feedPlayers(players: Iterable<Player>): void {
   for (const player of players) {
-    for (const cell of player.cells) feedCell(cell);
+    for (const cell of player.cells) feedCell(player, cell);
   }
 }
 

@@ -1,10 +1,10 @@
 import { hslToRgb, radiusFor, WORLD } from '../../shared/math.ts';
-import { BossKind, FoodVariety, type WireBoss } from '../../shared/protocol.ts';
-import { addFood } from '../food.ts';
+import { BOSS_SCALE, BossKind, FoodVariety, type WireBoss } from '../../shared/protocol.ts';
 import type { Cell, Point } from '../types.ts';
 import { allMembers, randomWorld, toBytes, world } from '../world.ts';
-import { Boss, joints } from './boss.ts';
+import { Boss, dissolveChain, joints, tail } from './boss.ts';
 import { nearestOnChain, pushOut, type Chain } from './chain.ts';
+import { foodsNear } from '../life/senses.ts';
 
 const SEGMENT = 70;
 const GROW_SPEED = 32;
@@ -31,7 +31,7 @@ function turn(angle: number): number {
 }
 
 function radiusAt(index: number, count: number): number {
-  return index === count - 1 ? 46 : 28 - 16 * (index / Math.max(count - 1, 1));
+  return (index === count - 1 ? 46 : 28 - 16 * (index / Math.max(count - 1, 1))) * BOSS_SCALE;
 }
 
 export class Physarum extends Boss {
@@ -50,7 +50,7 @@ export class Physarum extends Boss {
   private sprout(from: Point, heading: number, parent: Vein | null): void {
     this.veins.push({
       points: [{ ...from }, { x: from.x + Math.cos(heading) * 20, y: from.y + Math.sin(heading) * 20 }],
-      radii: [28, 46],
+      radii: [28 * BOSS_SCALE, 46 * BOSS_SCALE],
       heading,
       fused: false,
       parent,
@@ -65,7 +65,7 @@ export class Physarum extends Boss {
   private seek(vein: Vein, tip: Point): void {
     let best: Point | null = null;
     let bestDistance = SEEK_RANGE;
-    for (const food of world.foods.values()) {
+    for (const food of foodsNear(tip.x, tip.y, SEEK_RANGE)) {
       const distance = Math.hypot(food.x - tip.x, food.y - tip.y);
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -84,9 +84,7 @@ export class Physarum extends Boss {
     this.seek(vein, tip);
     tip.x = Math.min(WORLD - 60, Math.max(60, tip.x + Math.cos(vein.heading) * GROW_SPEED * dt));
     tip.y = Math.min(WORLD - 60, Math.max(60, tip.y + Math.sin(vein.heading) * GROW_SPEED * dt));
-    for (const food of world.foods.values()) {
-      if (Math.hypot(food.x - tip.x, food.y - tip.y) < 50) world.foods.delete(food.id);
-    }
+    for (const food of foodsNear(tip.x, tip.y, 50)) world.foods.delete(food.id);
   }
 
   private extend(vein: Vein, tip: Point): void {
@@ -116,9 +114,7 @@ export class Physarum extends Boss {
   }
 
   private cut(vein: Vein, from: number): void {
-    for (const point of vein.points.slice(from)) {
-      addFood({ x: point.x, y: point.y, variety: FoodVariety.Plant, color: this.color });
-    }
+    dissolveChain(tail(vein, from), this.color, [FoodVariety.Plant]);
     vein.points.splice(Math.max(2, from));
     vein.fused = false;
     vein.heading += Math.PI * 0.6;
@@ -159,11 +155,7 @@ export class Physarum extends Boss {
   }
 
   private sporulate(): void {
-    for (const vein of this.veins) {
-      for (const point of vein.points) {
-        addFood({ x: point.x, y: point.y, variety: FoodVariety.Pollen, color: this.color });
-      }
-    }
+    for (const vein of this.veins) dissolveChain(vein, this.color, [FoodVariety.Pollen]);
     this.sporulated = true;
   }
 

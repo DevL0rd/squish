@@ -1,5 +1,6 @@
 type Quality = 'high' | 'balanced' | 'low';
 type Side = 'left' | 'right';
+type FrameLimit = 'off' | '30' | '60' | '120' | '144';
 
 export interface Settings {
   readonly master: number;
@@ -18,6 +19,9 @@ export interface Settings {
   readonly vibration: boolean;
   readonly leaderboard: boolean;
   readonly meals: boolean;
+  readonly vsync: boolean;
+  readonly frameLimit: FrameLimit;
+  readonly fps: boolean;
 }
 
 const KEY = 'squish.settings';
@@ -39,6 +43,9 @@ const DEFAULTS: Settings = {
   vibration: true,
   leaderboard: true,
   meals: true,
+  vsync: true,
+  frameLimit: 'off',
+  fps: true,
 };
 
 type Listener = (current: Settings) => void;
@@ -90,7 +97,7 @@ export function resetSettings(): void {
 }
 
 export const QUALITY = {
-  high: { pixelRatio: 1.75, fluid: 1024 },
-  balanced: { pixelRatio: 1.25, fluid: 768 },
-  low: { pixelRatio: 1, fluid: 512 },
+  high: { pixelRatio: 1.75, fluid: 1024, shadows: 6 },
+  balanced: { pixelRatio: 1.25, fluid: 768, shadows: 4 },
+  low: { pixelRatio: 1, fluid: 512, shadows: 0 },
 } as const;

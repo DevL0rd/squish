@@ -1,3 +1,4 @@
+import type { Wall } from '../world/obstacles.ts';
 import { mulberry32, radiusFor, type Rgb } from '../../shared/math.ts';
 import type { WireCell } from '../../shared/protocol.ts';
 import { colorForHue, hexSeed, mixColor } from '../color.ts';
@@ -82,15 +83,28 @@ export function toLocal(cell: CellVisual, point: Point): Point {
   return { x: point.x - cell.center.x, y: point.y - cell.center.y };
 }
 
-export function stepMembrane(cell: CellVisual, dt: number, planes: readonly Plane[], cleave: Cleave | null): void {
+export interface MembraneStep {
+  readonly planes: readonly Plane[];
+  readonly walls: readonly Wall[];
+  readonly cleave: Cleave | null;
+  readonly substeps: number;
+}
+
+export function stepMembrane(cell: CellVisual, dt: number, { planes, walls, cleave, substeps }: MembraneStep): void {
   cell.membrane.radius = cell.radius;
   for (const item of cell.organelles.items) {
     if (!item.cup) continue;
     item.cup.x = cell.center.x + item.x;
     item.cup.y = cell.center.y + item.y;
   }
-  cell.membrane.step(dt, { anchor: cell, vx: cell.vx, vy: cell.vy, planes, cleave });
+  cell.membrane.step(dt, { anchor: cell, vx: cell.vx, vy: cell.vy, planes, walls, cleave, substeps });
   cell.center = ringCentroid(cell.membrane);
+}
+
+export function carryMembrane(cell: CellVisual): void {
+  cell.membrane.radius = cell.radius;
+  cell.membrane.translate(cell.x - cell.center.x, cell.y - cell.center.y);
+  cell.center = { x: cell.x, y: cell.y };
 }
 
 export function stepInterior(cell: CellVisual, dt: number): boolean {
