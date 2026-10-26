@@ -14,7 +14,7 @@ float thickness(Sample s) {
 
 vec3 behind(Sample s, float strength) {
   vec2 uv = gl_FragCoord.xy / uResolution;
-  vec2 bend = s.side * s.v * s.r * strength / uView;
+  vec2 bend = s.side * s.v * min(s.r, 70.0) * strength / uView;
   return texture(uBackground, uv - bend).rgb;
 }
 
@@ -41,7 +41,7 @@ float ring(float d, float radius, float width) {
 vec3 compose(Sample s, vec3 tissue, float density) {
   float t = thickness(s);
   vec3 back = behind(s, 0.4) * vec3(0.92, 1.0, 0.96);
-  vec3 col = mix(back, tissue, clamp(density * (0.35 + 0.65 * t), 0.0, 1.0));
+  vec3 col = mix(back, tissue, clamp(density * (0.22 + 0.5 * t), 0.0, 0.9));
   col += vec3(0.9, 0.97, 1.0) * max(relief(s), 0.0) * 0.16 * (1.0 - t);
   return col;
 }

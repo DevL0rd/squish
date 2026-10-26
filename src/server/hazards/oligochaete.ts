@@ -14,6 +14,7 @@ const TRAIL_LIFE = 26;
 const TRAIL_RADIUS = 90 * BOSS_REACH;
 const TRAIL_SLOW = 0.42;
 const MOUTH = 150 * BOSS_REACH;
+const MAX_SLIME = 180;
 const LIFETIME = 170;
 const BACTERIA = new Set([4, 5]);
 
@@ -132,7 +133,7 @@ export class Oligochaete extends Boss {
       state: this.leaving ? 1 : 0,
       progress: 1,
       health: this.vitality(),
-      chains: [joints(this.chain), slime.slice(-250)],
+      chains: [joints(this.chain), slime.slice(-MAX_SLIME)],
     };
   }
 }

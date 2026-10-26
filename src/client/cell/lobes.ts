@@ -1,4 +1,5 @@
 const MAX_LOBES = 4;
+const MAX_REACH = 0.9;
 
 interface Lobe {
   readonly angle: number;
@@ -28,19 +29,19 @@ export class Lobes {
     const angle = moving ? heading + (this.random() - 0.5) * 1.3 : this.random() * Math.PI * 2;
     this.lobes.push({
       angle,
-      width: 0.28 + this.random() * 0.3,
-      strength: (moving ? 1.1 : 0.55) * (0.6 + this.random() * 0.8),
+      width: 0.5 + this.random() * 0.4,
+      strength: (moving ? 0.8 : 0.45) * (0.6 + this.random() * 0.6),
       life: 0.9 + this.random() * 1.6,
       age: 0,
     });
   }
 
   extension(angle: number): number {
-    let total = 0;
+    let reach = 0;
     for (const lobe of this.lobes) {
       const diff = Math.atan2(Math.sin(angle - lobe.angle), Math.cos(angle - lobe.angle)) / lobe.width;
-      total += lobe.strength * Math.sin((Math.PI * lobe.age) / lobe.life) * Math.exp(-diff * diff);
+      reach = Math.max(reach, lobe.strength * Math.sin((Math.PI * lobe.age) / lobe.life) * Math.exp(-diff * diff));
     }
-    return total;
+    return Math.min(reach, MAX_REACH);
   }
 }

@@ -21,7 +21,7 @@ import {
   shadowFragment,
 } from '../shaders/sprites.ts';
 import { foodFragment, foodVertex } from '../shaders/food.ts';
-import { bossFragment, bossVertex } from '../shaders/boss.ts';
+import { bossFragment } from '../shaders/boss.ts';
 import { needleFragment, spotFragment } from '../shaders/spotlight.ts';
 import { obstacleFragment, obstacleVertex } from '../shaders/obstacle.ts';
 import { organelleFragment, organelleVertex } from '../shaders/organelle.ts';
@@ -45,7 +45,7 @@ export const programs = {
   creature: new ShaderProgram(creatureVertex, creatureFragment),
   organelle: new ShaderProgram(organelleVertex, organelleFragment),
   obstacle: new ShaderProgram(obstacleVertex, obstacleFragment),
-  boss: new ShaderProgram(bossVertex, bossFragment),
+  boss: new ShaderProgram(cellVertex, bossFragment),
   spot: new ShaderProgram(cellVertex, spotFragment),
   needle: new ShaderProgram(cellVertex, needleFragment),
   streak: new ShaderProgram(streakVertex, streakFragment),

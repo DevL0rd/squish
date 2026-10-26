@@ -75,6 +75,12 @@ export function drawCreatures(
       break;
     }
   }
+  const viewport = gl.getParameter(gl.VIEWPORT) as Int32Array;
+  bindTexture(0, backdrop());
+  programs.creature
+    .use()
+    .int('uBackground', 0)
+    .vec2('uResolution', viewport[2] ?? 1, viewport[3] ?? 1);
   flush(creatures, programs.creature, false);
 }
 

@@ -13,13 +13,13 @@ export interface Layer {
 }
 
 const KINDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-const CREATURE_COUNT = 34;
-const FOOD_COUNT = 70;
+const CREATURE_COUNT = 22;
+const FOOD_COUNT = 40;
 const MARGIN = 1.3;
 
 export const layers: readonly Layer[] = [
-  { depth: 0.35, scale: 0.6, blur: 2.2, alpha: 0.42, creatures: [], food: [] },
-  { depth: 0.6, scale: 0.8, blur: 1.1, alpha: 0.62, creatures: [], food: [] },
+  { depth: 0.35, scale: 0.6, blur: 2.2, alpha: 0.16, creatures: [], food: [] },
+  { depth: 0.6, scale: 0.8, blur: 1.1, alpha: 0.28, creatures: [], food: [] },
 ];
 
 let nextId = -1;
@@ -59,7 +59,7 @@ function fakeCreature(view: ViewCamera): CreatureVisual {
     ty: at.y,
     radius: 8 + Math.random() ** 3 * 60,
     kind: KINDS[Math.floor(Math.random() * KINDS.length)] ?? 0,
-    color: tint(at.x, at.y, 0.5),
+    color: tint(at.x, at.y, 0.34),
     angle,
     targetAngle: angle,
     phase: Math.random() * 10,
@@ -81,7 +81,7 @@ function fakeFood(view: ViewCamera): FoodVisual {
     ty: at.y,
     radius,
     targetRadius: radius,
-    color: tint(at.x, at.y, 0.45),
+    color: tint(at.x, at.y, 0.3),
     ejecta: false,
     grow: 1,
     alpha: 1,

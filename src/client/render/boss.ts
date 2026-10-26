@@ -1,65 +1,74 @@
 import { BOSS_SCALE, BossKind, type WireBoss, type WireJoint } from '../../shared/protocol.ts';
-import { bindTexture, blend, gl } from '../gl/context.ts';
-import { backdrop } from '../gl/screen.ts';
-import { InstanceBatch } from '../gl/instances.ts';
+import { bindTexture, blend, drawQuad, gl } from '../gl/context.ts';
 import { programs } from '../gl/programs.ts';
+import { backdrop } from '../gl/screen.ts';
+import { MAX_JOINTS } from '../shaders/boss.ts';
 import { inView } from '../state.ts';
 import { hazardView } from '../world/hazards.ts';
 import { setScreen, setView } from './view.ts';
 
 const SLIME = 5;
-const segments = new InstanceBatch(4, 2048);
-
-function chainLength(chain: readonly WireJoint[]): number[] {
-  const lengths = [0];
-  for (let i = 1; i < chain.length; i += 1) {
-    const a = chain[i - 1];
-    const b = chain[i];
-    lengths.push((lengths[i - 1] ?? 0) + (a && b ? Math.hypot(b.x - a.x, b.y - a.y) : 0));
-  }
-  return lengths;
-}
+const joints = new Float32Array(MAX_JOINTS * 4);
 
 function kindOf(boss: WireBoss, index: number): number {
   return boss.kind === BossKind.Oligochaete && index === 1 ? SLIME : boss.kind;
 }
 
-function segment(chain: readonly WireJoint[], i: number, cumulative: readonly number[], kind: number): number[] | null {
-  const a = chain[i];
-  const b = chain[i + 1];
-  if (!a || !b) return null;
-  if (!inView({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, 0.75, Math.max(a.r, b.r) * 2 + 120)) return null;
-  const prev = chain[i - 1] ?? a;
-  const next = chain[i + 2] ?? b;
-  const total = cumulative[cumulative.length - 1] ?? 1;
-  const ua = (cumulative[i] ?? 0) / total;
-  const ub = (cumulative[i + 1] ?? 0) / total;
-  return [a.x, a.y, a.r, ua, b.x, b.y, b.r, ub, prev.x, prev.y, prev.r, kind, next.x, next.y, next.r, total];
+function bounds(chain: readonly WireJoint[]): { x: number; y: number; extent: number } {
+  let [minX, minY, maxX, maxY, reach] = [Infinity, Infinity, -Infinity, -Infinity, 0];
+  for (const joint of chain) {
+    minX = Math.min(minX, joint.x);
+    minY = Math.min(minY, joint.y);
+    maxX = Math.max(maxX, joint.x);
+    maxY = Math.max(maxY, joint.y);
+    reach = Math.max(reach, joint.r);
+  }
+  const extent = Math.max(maxX - minX, maxY - minY) / 2 + reach * 1.3 + 60;
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2, extent };
 }
 
-function queueChain(chain: readonly WireJoint[], kind: number): boolean {
-  const cumulative = chainLength(chain);
-  for (let i = 0; i < chain.length - 1; i += 1) {
-    const values = segment(chain, i, cumulative, kind);
-    if (values && !segments.add(values)) return false;
+function upload(chain: readonly WireJoint[]): { count: number; total: number } {
+  const count = Math.min(chain.length, MAX_JOINTS);
+  let total = 0;
+  for (let i = 0; i < count; i += 1) {
+    const joint = chain[i];
+    const before = chain[i - 1];
+    if (!joint) continue;
+    if (before) total += Math.hypot(joint.x - before.x, joint.y - before.y);
+    joints.set([joint.x, joint.y, joint.r, total], i * 4);
   }
-  return true;
+  for (let i = 0; i < count; i += 1) joints[i * 4 + 3] = (joints[i * 4 + 3] ?? 0) / Math.max(total, 1);
+  return { count, total };
+}
+
+function drawChain(chain: readonly WireJoint[], kind: number): void {
+  if (chain.length < 2) return;
+  const box = bounds(chain);
+  if (!inView(box, 0.75, box.extent)) return;
+  const { count, total } = upload(chain);
+  setView(programs.boss)
+    .vec2('uCenter', box.x, box.y)
+    .float('uExtent', box.extent)
+    .vec4s('uJoints', joints)
+    .int('uCount', count)
+    .float('uTotal', total)
+    .float('uKind', kind);
+  drawQuad();
 }
 
 export function drawBoss(time: number): void {
   const { boss } = hazardView();
   if (!boss) return;
-  segments.begin();
-  boss.chains.forEach((chain, index) => queueChain(chain, kindOf(boss, index)));
-  if (!segments.count) return;
-  blend(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   bindTexture(0, backdrop());
+  blend(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   setScreen(setView(programs.boss))
     .int('uBackground', 0)
     .float('uScale', BOSS_SCALE)
     .float('uTime', time)
     .float('uState', boss.state)
     .float('uProgress', boss.progress);
-  segments.draw();
+  boss.chains.forEach((chain, index) => {
+    drawChain(chain, kindOf(boss, index));
+  });
   gl.disable(gl.BLEND);
 }
