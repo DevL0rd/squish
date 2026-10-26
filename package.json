@@ -5,7 +5,21 @@
   "type": "module",
   "description": "A living suspension of soft cells in dark water.",
   "scripts": {
-    "start": "node server.mjs"
+    "dev": "concurrently -k -n server,client \"node --watch src/server/main.ts --port 5174\" \"vite\"",
+    "build": "vite build",
+    "start": "vite build && node src/server/main.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p src/client/tsconfig.json",
+    "lint": "eslint .",
+    "lint:css": "stylelint \"src/**/*.css\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "spell": "cspell --no-progress --gitignore \"**/*.{ts,css,html,md,json}\"",
+    "hygiene": "node scripts/check-hygiene.ts",
+    "deadcode": "knip",
+    "duplicates": "jscpd src tests scripts",
+    "test:unit": "node --test \"tests/**/*.test.ts\"",
+    "test": "npm run typecheck && npm run lint && npm run lint:css && npm run format:check && npm run spell && npm run hygiene && npm run deadcode && npm run duplicates && npm run test:unit",
+    "setup": "npm install"
   },
   "license": "MIT",
   "repository": {
@@ -18,5 +32,27 @@
     "fluid",
     "softbody",
     "multiplayer"
-  ]
+  ],
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
+    "concurrently": "^10.0.6",
+    "cspell": "^10.4.0",
+    "eslint": "^10.13.0",
+    "jscpd": "^5.4.2",
+    "knip": "^6.43.0",
+    "prettier": "^3.9.10",
+    "stylelint": "^17.16.0",
+    "stylelint-config-standard": "^40.0.0",
+    "typescript": "~6.0",
+    "typescript-eslint": "^8.72.0",
+    "vite": "^8.3.5"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
 }

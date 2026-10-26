@@ -1,0 +1,232 @@
+.intro {
+  position: fixed;
+  z-index: 6;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 90px var(--gutter) 46px;
+  background:
+    radial-gradient(80% 90% at 72% 50%, transparent 10%, rgb(2 8 9 / 8%) 60%, rgb(2 8 9 / 36%) 100%),
+    linear-gradient(90deg, rgb(2 8 9 / 92%) 0%, rgb(2 8 9 / 55%) 32%, rgb(2 8 9 / 2%) 62%, transparent 100%);
+  transition:
+    opacity 700ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    visibility 700ms;
+}
+
+.intro.leaving {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.intro-inner {
+  width: min(560px, 100%);
+  animation: settle 1100ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  color: var(--bone-dim);
+}
+
+.intro h1 {
+  margin: 22px 0 0;
+  font-family: var(--serif);
+  font-size: clamp(92px, 14vw, 176px);
+  font-weight: 400;
+  line-height: 0.77;
+  letter-spacing: -0.045em;
+  color: var(--bone);
+  text-shadow: 0 0 80px rgb(178 240 222 / 12%);
+}
+
+.intro h1 .serial {
+  display: inline-block;
+  transform: translateY(-0.92em);
+  margin-left: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.lede {
+  margin: 30px 0 0;
+  max-width: 340px;
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1.38;
+  color: var(--bone-dim);
+  letter-spacing: 0.005em;
+}
+
+#joinForm {
+  margin-top: 38px;
+  max-width: 360px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+#nameInput {
+  width: 100%;
+  padding: 10px 0 11px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--bone);
+  font-family: var(--serif);
+  font-size: 22px;
+  letter-spacing: 0.005em;
+  outline: none;
+  transition: border-color 220ms ease;
+}
+
+#nameInput::placeholder {
+  color: rgb(126 145 136 / 55%);
+}
+
+#nameInput:focus {
+  border-color: rgb(169 237 218 / 60%);
+}
+
+.enter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  width: 100%;
+  margin-top: 34px;
+  padding: 15px 0 14px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--bone);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color 200ms ease,
+    border-color 200ms ease,
+    padding 300ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.enter .arrow {
+  font-family: var(--sans);
+  font-size: 16px;
+  transition: transform 300ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.enter:hover {
+  border-color: rgb(169 237 218 / 50%);
+  color: var(--mint);
+  padding-left: 4px;
+}
+
+.enter:hover .arrow {
+  transform: translateX(5px);
+}
+
+.enter:disabled {
+  color: var(--muted);
+  cursor: default;
+  border-color: var(--line-soft);
+}
+
+.intro-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 42px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  color: rgb(126 145 136 / 72%);
+  white-space: nowrap;
+}
+
+.foot-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+  min-width: 18px;
+}
+
+.edge-note {
+  position: absolute;
+  right: var(--gutter);
+  bottom: 24px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.07em;
+  color: rgb(126 145 136 / 45%);
+  writing-mode: vertical-rl;
+}
+
+.death {
+  position: fixed;
+  z-index: 7;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(60% 70% at 50% 46%, rgb(3 9 10 / 50%), rgb(2 7 8 / 88%));
+  backdrop-filter: blur(9px) saturate(0.7);
+  animation: fade-in 700ms ease both;
+}
+
+.death-inner {
+  width: min(440px, calc(100% - var(--gutter) * 2));
+  text-align: left;
+}
+
+.death .dead-dot {
+  background: var(--rose);
+  box-shadow: 0 0 12px rgb(244 167 189 / 70%);
+  animation: none;
+}
+
+.death h2 {
+  margin: 22px 0 0;
+  font-family: var(--serif);
+  font-size: clamp(58px, 8vw, 88px);
+  font-weight: 400;
+  line-height: 0.88;
+  letter-spacing: -0.035em;
+}
+
+.death p {
+  margin: 22px 0 0;
+  max-width: 320px;
+  font-family: var(--serif);
+  font-size: 19px;
+  line-height: 1.4;
+  color: var(--bone-dim);
+}
+
+.death .enter {
+  max-width: 320px;
+  margin-top: 38px;
+}

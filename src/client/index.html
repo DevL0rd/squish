@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#03090a" />
+    <title>SQUISH — live suspension</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles/index.css" />
+  </head>
+  <body>
+    <canvas id="culture" aria-label="A living culture of cells in dark fluid"></canvas>
+    <canvas id="labels" aria-hidden="true"></canvas>
+    <div class="wash" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <div class="wordmark"><span class="pulse"></span><span>Squish</span><span class="serial">07</span></div>
+      <div class="masthead-meta"><span>Dark field</span><span class="hair"></span><span id="temp">37.2 °C</span></div>
+    </header>
+
+    <main id="hud" class="hud" hidden>
+      <section class="specimen">
+        <div class="label">Specimen</div>
+        <div class="specimen-name" id="specimenName">Squish 07</div>
+        <div class="specimen-meta"><span class="live-dot"></span><span id="occupants">12 organisms</span></div>
+      </section>
+
+      <section class="board">
+        <div class="board-head"><span>Population</span><span>µg</span></div>
+        <ol id="ranks"></ol>
+      </section>
+
+      <section class="biomass">
+        <div class="label">Biomass</div>
+        <div class="mass-line"><span id="mass">000.0</span><span class="unit">µg</span></div>
+        <div class="biomass-meta"><span id="bodyCount">1 body</span><span id="rank">unranked</span></div>
+      </section>
+
+      <div class="control-hint"><span>drag to drift</span><span>space to split</span><span>w to spit</span></div>
+
+      <div class="touch-actions" id="touchActions">
+        <button type="button" id="splitBtn" aria-label="Split">Split</button>
+        <button type="button" id="ejectBtn" aria-label="Spit mass">Spit</button>
+      </div>
+
+      <button type="button" id="soundBtn" class="sound" aria-label="Mute sound" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9.5h3.2L12 5.4v13.2L7.2 14.5H4z" fill="none" stroke="currentColor" stroke-width="1.2" />
+          <path
+            d="M15.2 9.1c1.2 1.5 1.2 4.3 0 5.8M18 6.6c2.4 3 2.4 7.8 0 10.8"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.2"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+    </main>
+
+    <section id="intro" class="intro">
+      <div class="intro-inner">
+        <div class="eyebrow"><span class="live-dot"></span><span>live culture · dark field</span></div>
+        <h1>Squish<span class="serial">07</span></h1>
+        <p class="lede">A soft body in dark water. Eat what drifts. Split when it counts. Nothing here is still.</p>
+
+        <form id="joinForm" autocomplete="off">
+          <div class="field">
+            <label for="nameInput">Designation</label>
+            <input
+              id="nameInput"
+              maxlength="16"
+              spellcheck="false"
+              placeholder="Unnamed organism"
+              aria-label="Your name"
+            />
+          </div>
+          <button type="submit" class="enter" id="enterBtn">
+            <span>Enter the suspension</span>
+            <span class="arrow" aria-hidden="true">→</span>
+          </button>
+        </form>
+
+        <div class="intro-foot">
+          <span id="online">12 organisms present</span>
+          <span class="foot-rule"></span>
+          <span class="foot-desktop">drag to move · space split · w spit</span>
+          <span class="foot-touch">left thumb steers · right buttons split</span>
+        </div>
+      </div>
+      <div class="edge-note">SmartEverything Bio · continuous observation</div>
+    </section>
+
+    <section id="death" class="death" hidden>
+      <div class="death-inner">
+        <div class="eyebrow"><span class="dead-dot"></span><span>lysis event</span></div>
+        <h2>Your membrane<br />gave way.</h2>
+        <p>Fused into <span id="killer">the culture</span>. The suspension is patient.</p>
+        <button type="button" id="respawnBtn" class="enter">
+          <span>Re-enter the suspension</span><span class="arrow" aria-hidden="true">→</span>
+        </button>
+      </div>
+    </section>
+
+    <div id="joystick" class="joystick" hidden aria-hidden="true">
+      <div class="joystick-ring"></div>
+      <div class="joystick-knob" id="joystickKnob"></div>
+    </div>
+
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+    <div id="boot" class="boot"><span>preparing specimen</span><span class="boot-line"></span></div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

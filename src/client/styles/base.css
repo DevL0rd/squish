@@ -1,0 +1,102 @@
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/fonts/instrument-serif.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/fonts/instrument-serif-italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Plex Mono';
+  src: url('/fonts/plex-mono-300.woff2') format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Plex Mono';
+  src: url('/fonts/plex-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Plex Mono';
+  src: url('/fonts/plex-mono-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --ink: #03090a;
+  --ink-2: #061113;
+  --bone: #eef2e7;
+  --bone-dim: #b8c4ba;
+  --muted: #7e9188;
+  --line: rgb(222 242 232 / 14%);
+  --line-soft: rgb(222 242 232 / 7.5%);
+  --mint: #a9edda;
+  --rose: #f4a7bd;
+  --serif: 'Instrument Serif', 'Iowan Old Style', 'Palatino Linotype', georgia, serif;
+  --mono: 'Plex Mono', 'SFMono-Regular', menlo, consolas, monospace;
+  --sans: 'Adwaita Sans', 'Fira Sans', 'Helvetica Neue', system-ui, sans-serif;
+  --gutter: clamp(20px, 4.2vw, 64px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--bone);
+}
+
+body {
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+#culture,
+#labels {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#culture {
+  cursor: crosshair;
+}
+
+#labels {
+  pointer-events: none;
+}
+
+.wash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 78% 48%, transparent 22%, rgb(1 6 7 / 16%) 72%, rgb(1 5 6 / 58%) 100%),
+    linear-gradient(90deg, rgb(2 8 9 / 70%) 0%, rgb(2 8 9 / 12%) 36%, transparent 58%);
+  mix-blend-mode: multiply;
+}

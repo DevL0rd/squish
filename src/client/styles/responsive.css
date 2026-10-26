@@ -1,0 +1,209 @@
+@media (pointer: coarse) {
+  .foot-desktop {
+    display: none;
+  }
+
+  .foot-touch {
+    display: inline;
+  }
+}
+
+@media (width <= 820px) {
+  .intro {
+    align-items: flex-end;
+    padding: 80px 22px calc(28px + env(safe-area-inset-bottom));
+    background: linear-gradient(
+      0deg,
+      rgb(2 8 9 / 97%) 0%,
+      rgb(2 8 9 / 86%) 34%,
+      rgb(2 8 9 / 28%) 66%,
+      rgb(2 8 9 / 5%) 100%
+    );
+  }
+
+  .intro-inner {
+    width: 100%;
+    max-width: 460px;
+  }
+
+  .intro h1 {
+    font-size: clamp(76px, 24vw, 112px);
+    margin-top: 15px;
+  }
+
+  .lede {
+    margin-top: 18px;
+    font-size: 17px;
+    max-width: 300px;
+  }
+
+  #joinForm {
+    margin-top: 24px;
+    max-width: none;
+  }
+
+  .enter {
+    margin-top: 24px;
+  }
+
+  .intro-foot {
+    margin-top: 22px;
+    font-size: 8px;
+    gap: 9px;
+  }
+
+  .intro-foot .foot-rule {
+    display: none;
+  }
+
+  .intro-foot .foot-desktop {
+    display: none;
+  }
+
+  .intro-foot .foot-touch {
+    display: inline;
+    white-space: normal;
+  }
+
+  .edge-note {
+    display: none;
+  }
+
+  .masthead {
+    padding: 16px 20px;
+    font-size: 9px;
+  }
+
+  .wordmark {
+    font-size: 19px;
+  }
+
+  .masthead-meta .hair,
+  #temp {
+    display: none;
+  }
+
+  .specimen {
+    top: 58px;
+    left: 20px;
+  }
+
+  .specimen-name {
+    font-size: 20px;
+  }
+
+  .board {
+    top: 58px;
+    right: 20px;
+    width: 144px;
+  }
+
+  .board li {
+    grid-template-columns: 14px 1fr auto;
+    gap: 5px;
+    font-size: 9px;
+  }
+
+  .board .score {
+    font-size: 8px;
+  }
+
+  .board-head {
+    font-size: 8px;
+  }
+
+  .biomass {
+    left: 20px;
+    bottom: calc(88px + env(safe-area-inset-bottom));
+  }
+
+  #mass {
+    font-size: 42px;
+  }
+
+  .control-hint {
+    display: none;
+  }
+
+  .touch-actions {
+    display: flex;
+    right: 20px;
+    bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .sound {
+    right: 16px;
+    bottom: calc(26px + env(safe-area-inset-bottom));
+  }
+
+  .status {
+    bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (width <= 820px) and (orientation: landscape) {
+  .intro {
+    align-items: center;
+    padding: 54px 24px;
+  }
+
+  .intro-inner {
+    max-width: 430px;
+  }
+
+  .intro h1 {
+    font-size: 72px;
+  }
+
+  .lede {
+    display: none;
+  }
+
+  #joinForm {
+    margin-top: 18px;
+  }
+
+  .intro-foot {
+    margin-top: 16px;
+  }
+
+  .specimen {
+    top: 54px;
+  }
+
+  .board {
+    top: 54px;
+  }
+
+  .biomass {
+    bottom: 26px;
+  }
+}
+
+@media (pointer: coarse) {
+  .control-hint {
+    display: none;
+  }
+
+  .touch-actions {
+    display: flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.touch-mode .touch-actions {
+  display: flex;
+}
+
+.touch-mode .control-hint {
+  display: none;
+}
